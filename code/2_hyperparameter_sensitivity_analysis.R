@@ -26,7 +26,7 @@ varying_hyper <- varying_hyper[select_row,]
 
 # Set up the parallelization ----
 library(parallel)
-cl <- makeCluster(min(length(select_row),30, detectCores() - 1))
+cl <- makeCluster(min(nrow(varying_hyper),30, detectCores() - 1))
 parApply(cl,varying_hyper,1,function(vh) {
   library(bayestensorreg)
   set.seed(831)
@@ -39,6 +39,9 @@ parApply(cl,varying_hyper,1,function(vh) {
       other_covar = c(25, 3, 0.1)
     )
   D <- 2
+  names_vec <- c("a.lam", "a.sig", "b.sig", "a.tau", "a.u", "a.z", "row")
+  vh <- as.data.frame(t(vh))
+  names(vh) <- names_vec
   test_hyperpars <- list(
     a.lam = vh$a.lam,
     b.lam = vh$a.lam^(1/(2*D)),
