@@ -3,49 +3,68 @@
 # may make the analysis more reproducible
 
 # Read in the data ----
-data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-subjects <- list.files(data_dir) |> grep(pattern = "_S_", value = T)
-library(oro.nifti)
-library(fslr)
+# data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+# subjects <- list.files(data_dir) |> grep(pattern = "_S_", value = T)
+# library(oro.nifti)
+# library(fslr)
 
-icbm_template <- readNIfTI("~/Downloads/ICBM_Template.nii.gz")
-icbm_labels <- readNIfTI("~/Downloads/ICBM_labels.nii.gz")
+# icbm_template <- readNIfTI("~/Downloads/ICBM_Template.nii.gz")
+# icbm_labels <- readNIfTI("~/Downloads/ICBM_labels.nii.gz")
 
-source("https://neuroconductor.org/neurocLite.R")
-neuro_install("MNITemplate")
-library(MNITemplate)
+# source("https://neuroconductor.org/neurocLite.R")
+# neuro_install("MNITemplate")
+# library(MNITemplate)
 
-mni_template <- readMNI()
+# mni_template <- readMNI()
 
+# job::job({
+#   subject_imgs <- sapply(subjects, function(subject) {
+#     subject_file <- list.files(file.path(data_dir, subject), full.names = T, recursive = T) |>
+#       grep(pattern = ".nii", value = T)
+#     print(subject_file)
+#     subject_img <- try(readNIfTI(subject_file))
+#     while(class(subject_img) == "try-error") subject_img <- try(readNIfTI(subject_file))
+#     # resamp_img <- try(fsl_resample(subject_img,voxel_size = 2))
+#     # while(class(resamp_img) == "try-error") resamp_img <- try(fsl_resample(subject_file,voxel_size = 2))
+#     # return(resamp_img@.Data)
+#     # use this to get a slice of full-res data
+#     return(subject_img@.Data[,,110])
+#   }, simplify = "array")
+# }, import = c(subjects, data_dir), packages = c("oro.nifti","fslr"))
+# # saveRDS(subject_imgs, file = file.path(data_dir,"4_ADNI_TBM_subject_imgs_2mm.rds"))
+# saveRDS(subject_imgs, file = file.path(data_dir,"4_ADNI_TBM_subject_imgs_slice110.rds"))
+# subject_imgs <- readRDS(file.path(data_dir, "4_ADNI_TBM_subject_imgs_slice110.rds"))
+# subject_imgs <- readRDS(file.path(data_dir, "4_ADNI_TBM_subject_imgs_2mm.rds"))
 
-job::job({
-  subject_imgs <- sapply(subjects, function(subject) {
-    subject_file <- list.files(file.path(data_dir, subject), full.names = T, recursive = T) |>
-      grep(pattern = ".nii", value = T)
-    print(subject_file)
-    subject_img <- try(readNIfTI(subject_file))
-    while(class(subject_img) == "try-error") subject_img <- try(readNIfTI(subject_file))
-    resamp_img <- try(fsl_resample(subject_img,voxel_size = 2))
-    while(class(resamp_img) == "try-error") resamp_img <- try(fsl_resample(subject_file,voxel_size = 2))
-    return(resamp_img@.Data)
-  }, simplify = "array")
-}, import = c(subjects, data_dir), packages = c("oro.nifti","fslr"))
-saveRDS(subject_imgs, file = file.path(data_dir,"4_ADNI_TBM_subject_imgs_2mm.rds"))
-subject_imgs <- readRDS(file.path(data_dir, "4_ADNI_TBM_subject_imgs.rds"))
+# library(ADNIMERGE)
+# adni_df <- subset(adnimerge, PTID %in% subjects & !is.na(MMSE), select = c(PTID,VISCODE,PTEDUCAT,APOE4,MMSE))
+# adni_bl <- subset(adni_df, VISCODE == "bl")
+# adni_bl <- adni_bl[order(adni_bl$PTID),] # This is important. Make sure the order is the same
+#
+# library(bayestensorreg)
+# tbm_data <- as.TR_data(adni_bl$MMSE,subject_imgs,eta = cbind(1,as.matrix(adni_bl[,3:4])))
+# saveRDS(tbm_data, file.path(data_dir,"4_ADNI_TBM_slice110_TRdata.rds"))
 
-library(ADNIMERGE)
-adni_df <- subset(adnimerge, PTID %in% subjects & !is.na(MMSE), select = c(PTID,VISCODE,PTEDUCAT,APOE4,MMSE))
-adni_bl <- subset(adni_df, VISCODE == "bl")
-adni_last <- subset(adni_df, VISCODE != "bl") |>
-  transform(VISCODEn = as.numeric(sub(pattern = "m",replacement = "",VISCODE)))
-
-library(tidyverse)
-adni_last <-
-  adni_df %>%
-  mutate(VISCODEn = ifelse(VISCODE == "bl",0,as.numeric(sub("m","",VISCODE)))) %>%
-  group_by(PTID) %>%
-  filter(VISCODEn == max(VISCODEn) | VISCODEn == 0) %>%
-  mutate(start_end = ifelse(VISCODEn == 0,"start","end"))
-
-adni_smc <- subset(adnimerge, DX.bl == "SMC" & VISCODE == "bl", select = c())
-
+# ANALYSIS ----
+# > Tucker ----
+ranks <- as.matrix(expand.grid(1:4,1:4))
+library(parallel)
+cl <- makeCluster(8) # Number of parallel cores
+parApply(cl, ranks, 1, function(r) {
+  library(bayestensorreg)
+  data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+  result_dir <- "~/github/BTRTucker/results/ADNI"
+  tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice110_TRdata.rds"))
+  set.seed(47408)
+  btr_tucker <-
+    BTRTucker(
+      input = tbm_data,
+      ranks = r,
+      n_iter = 1500,
+      n_burn = 500,
+      hyperparameters = NULL,
+      save_dir = NULL
+    )
+  saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_BTRTucker_rank",paste(r,collapse = ""),".rds")))
+  return(NULL)
+}, tbm_data = tbm_data)
