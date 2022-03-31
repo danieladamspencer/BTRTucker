@@ -67,4 +67,24 @@ parApply(cl, ranks, 1, function(r) {
     )
   saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_BTRTucker_rank",paste(r,collapse = ""),".rds")))
   return(NULL)
-}, tbm_data = tbm_data)
+})
+
+# RESULTS ----
+# > Tucker ----
+result_dir <- "~/github/BTRTucker/results/ADNI"
+result_files <- list.files(result_dir, full.names = T) |>
+  grep(pattern = ".rds", value = T)
+rankGrid <- as.matrix(expand.grid(1:4,1:4))
+library(bayestensorreg)
+dicVals <- apply(rankGrid,1, function(r) {
+  rFile <- grep(paste0("rank",paste(r,collapse = ""),".rds"),result_files, value = T)
+  res <- readRDS(rFile)
+  dicOut <- DIC(res$llik, burn_in = 500)
+  return(dicOut)
+})
+cbind(rankGrid,dicVals)[order(dicVals),]
+rankGrid[which.min(dicVals),]
+result <- readRDS(file.path(result_dir,"4_ADNI_TBM_BTRTucker_rank32.rds"))
+plot(result$llik, type= 'l')
+B <- BTRT_final_B(result)
+tile.plot(B)
