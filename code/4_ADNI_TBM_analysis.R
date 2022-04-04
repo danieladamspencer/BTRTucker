@@ -47,27 +47,27 @@
 
 # ANALYSIS ----
 # > Bayes Tucker ----
-# ranks <- as.matrix(expand.grid(1:4,1:4))
-# library(parallel)
-# cl <- makeCluster(8) # Number of parallel cores
-# parApply(cl, ranks, 1, function(r) {
-#   library(bayestensorreg)
-#   data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-#   result_dir <- "~/github/BTRTucker/results/ADNI"
-#   tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice110_TRdata.rds"))
-#   set.seed(47408)
-#   btr_tucker <-
-#     BTRTucker(
-#       input = tbm_data,
-#       ranks = r,
-#       n_iter = 1500,
-#       n_burn = 500,
-#       hyperparameters = NULL,
-#       save_dir = NULL
-#     )
-#   saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_BTRTucker_rank",paste(r,collapse = ""),".rds")))
-#   return(NULL)
-# })
+ranks <- as.matrix(expand.grid(1:4,1:4))
+library(parallel)
+cl <- makeCluster(8) # Number of parallel cores
+parApply(cl, ranks, 1, function(r) {
+  library(bayestensorreg)
+  data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+  result_dir <- "~/github/BTRTucker/results/ADNI"
+  tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice110_TRdata.rds"))
+  set.seed(47408)
+  btr_tucker <-
+    BTRTucker(
+      input = tbm_data,
+      ranks = r,
+      n_iter = 1500,
+      n_burn = 500,
+      hyperparameters = NULL,
+      save_dir = NULL
+    )
+  saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_BTRTucker_rank",paste(r,collapse = ""),".rds")))
+  return(NULL)
+})
 
 # >  Bayes CP ----
 library(parallel)
@@ -93,20 +93,22 @@ parSapply(cl, 1:4, function(r) {
 
 # RESULTS ----
 # > Bayes Tucker ----
-# result_dir <- "~/github/BTRTucker/results/ADNI"
-# result_files <- list.files(result_dir, full.names = T) |>
-#   grep(pattern = ".rds", value = T)
-# rankGrid <- as.matrix(expand.grid(1:4,1:4))
-# library(bayestensorreg)
-# dicVals <- apply(rankGrid,1, function(r) {
-#   rFile <- grep(paste0("rank",paste(r,collapse = ""),".rds"),result_files, value = T)
-#   res <- readRDS(rFile)
-#   dicOut <- DIC(res$llik, burn_in = 500)
-#   return(dicOut)
-# })
-# cbind(rankGrid,dicVals)[order(dicVals),]
-# rankGrid[which.min(dicVals),]
-# result <- readRDS(file.path(result_dir,"4_ADNI_TBM_BTRTucker_rank32.rds"))
-# plot(result$llik, type= 'l')
-# B <- BTRT_final_B(result)
-# tile.plot(B)
+result_dir <- "~/github/BTRTucker/results/ADNI"
+result_files <- list.files(result_dir, full.names = T) |>
+  grep(pattern = "TBM_BTRTucker", value = T)
+rankGrid <- as.matrix(expand.grid(1:4,1:4))
+library(bayestensorreg)
+dicVals <- apply(rankGrid,1, function(r) {
+  rFile <- grep(paste0("rank",paste(r,collapse = ""),".rds"),result_files, value = T)
+  res <- readRDS(rFile)
+  dicOut <- DIC(res$llik, burn_in = 500)
+  return(dicOut)
+})
+cbind(rankGrid,dicVals)[order(dicVals),]
+rankGrid[which.min(dicVals),]
+result <- readRDS(file.path(result_dir,"4_ADNI_TBM_BTRTucker_rank32.rds"))
+plot(result$llik, type= 'l')
+B <- BTRT_final_B(result)
+tile.plot(B)
+
+# Bayes CP ----
