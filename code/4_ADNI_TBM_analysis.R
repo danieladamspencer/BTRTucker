@@ -82,8 +82,8 @@ parSapply(cl, 1:4, function(r) {
     BTR_CP(
       input = tbm_data,
       max_rank = r,
-      n_iter = 1500,
-      n_burn = 500,
+      n_iter = 10,
+      n_burn = 0,
       hyperparameters = NULL,
       save_dir = NULL
     )
@@ -110,5 +110,39 @@ result <- readRDS(file.path(result_dir,"4_ADNI_TBM_BTRTucker_rank32.rds"))
 plot(result$llik, type= 'l')
 B <- BTRT_final_B(result)
 tile.plot(B)
+library(MNITemplate)
+mni_template <- readMNI()
+tile.plot(mni_template@.Data[,,91])
+library(oro.nifti)
+mdt_template <- readNIfTI("~/Downloads/ADNI_MDT/ADNI_ICBM9P_mni_4step_MDT.nii.gz")
+library(tidyverse)
+template_grob <-
+  # mni_template@.Data[,,91] |>
+  mdt_template@.Data[,,110] |>
+  reshape2::melt() |>
+  ggplot() +
+  geom_raster(aes(x = Var1, y = Var2, fill = value)) +
+  scale_fill_distiller(palette = "Greys") +
+  guides(fill = "none") +
+  theme_void() +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0))
+template_grob <- ggplotGrob(template_grob)
 
-# Bayes CP ----
+reshape2::melt(B) |>
+  ggplot() +
+  annotation_custom(grob = template_grob) +
+  geom_raster(aes(x = Var1, y = Var2, fill = value, alpha = value / max(abs(value)))) +
+  scale_fill_gradient2("") +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  guides(fill = "none", alpha = "none") +
+  theme_void()
+
+
+mdt_out <- mdt_template
+mdt_out@.Data <- array(0,dim = dim(mdt_out@.Data))
+mdt_out@.Data[,,110] <- B
+writeNIfTI(mdt_out, filename = "~/Downloads/ADNI_MDT/BTRT_final_B_out")
+
+# > Bayes CP ----
