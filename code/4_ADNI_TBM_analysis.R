@@ -91,6 +91,50 @@ parSapply(cl, 1:4, function(r) {
   return(NULL)
 })
 
+# > FTR Tucker ----
+ranks <- as.matrix(expand.grid(1:4,1:4))
+library(parallel)
+cl <- makeCluster(8) # Number of parallel cores
+parApply(cl, ranks, 1, function(r) {
+  library(bayestensorreg)
+  data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+  result_dir <- "~/github/BTRTucker/results/ADNI"
+  tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice110_TRdata.rds"))
+  set.seed(47408)
+  ftr_tucker <-
+    FTRTucker(
+      input = tbm_data,
+      ranks = r,
+      epsilon = 1e-4,
+      betas_LASSO = F
+    )
+  saveRDS(ftr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_FTRTucker_rank",paste(r,collapse = ""),".rds")))
+  return(NULL)
+})
+
+# > FTR CP ----
+# library(parallel)
+# cl <- makeCluster(4) # Number of parallel cores
+# parSapply(cl, 1:4, function(r) {
+library(bayestensorreg)
+data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+result_dir <- "~/github/BTRTucker/results/ADNI"
+tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice110_TRdata.rds"))
+for(r in 1:4) {
+  set.seed(47408)
+  ftr_cp <-
+    FTR_CP(
+      input = tbm_data,
+      rank = r,
+      epsilon = 1e-4
+    )
+  saveRDS(ftr_cp, file.path(result_dir,paste0("4_ADNI_TBM_FTR_CP_rank",paste(r,collapse = ""),".rds")))
+}
+
+  # return(NULL)
+# })
+# stopCluster(cl)
+
 # RESULTS ----
 # > Bayes Tucker ----
 result_dir <- "~/github/BTRTucker/results/ADNI"
@@ -130,9 +174,10 @@ template_grob <-
 template_grob <- ggplotGrob(template_grob)
 
 reshape2::melt(B) |>
+  # mutate(value = ifelse(value == 0, NA, value)) |>
   ggplot() +
   annotation_custom(grob = template_grob) +
-  geom_raster(aes(x = Var1, y = Var2, fill = value, alpha = value / max(abs(value)))) +
+  geom_raster(aes(x = Var1, y = Var2, fill = value, alpha = value / max(abs(value),na.rm = T))) +
   scale_fill_gradient2("") +
   scale_x_continuous(expand = c(0,0)) +
   scale_y_continuous(expand = c(0,0)) +
@@ -146,3 +191,29 @@ mdt_out@.Data[,,110] <- B
 writeNIfTI(mdt_out, filename = "~/Downloads/ADNI_MDT/BTRT_final_B_out")
 
 # > Bayes CP ----
+
+# > FTR Tucker ----
+result_dir <- "~/github/BTRTucker/results/ADNI"
+result_files <- list.files(result_dir, full.names = T) |>
+  grep(pattern = "TBM_FTRTucker", value = T)
+rankGrid <- as.matrix(expand.grid(1:4,1:4))
+library(bayestensorreg)
+llikVals <- apply(rankGrid,1, function(r) {
+  rFile <- grep(paste0("rank",paste(r,collapse = ""),".rds"),result_files, value = T)
+  res <- readRDS(rFile)
+  llik_out <- res$llik
+  return(llik_out)
+})
+rankGrid[which.min(llikVals),]
+ftr_out <- readRDS(file.path(result_dir,"4_ADNI_TBM_FTRTucker_rank24.rds"))
+
+reshape2::melt(ftr_out$B) |>
+  # mutate(value = ifelse(value == 0, NA, value)) |>
+  ggplot() +
+  annotation_custom(grob = template_grob) +
+  geom_raster(aes(x = Var1, y = Var2, fill = value, alpha = value / max(abs(value),na.rm = T))) +
+  scale_fill_gradient2("") +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  guides(fill = "none", alpha = "none") +
+  theme_void()
