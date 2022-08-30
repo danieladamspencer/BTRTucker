@@ -91,57 +91,59 @@
 # })
 # stopCluster(cl)
 
-# > Frequentist Tucker ----
-library(parallel)
-cl <- makeCluster(8)
-# Set rank grid
-rank_values <- expand.grid(r1 = 1:4, r2 = 1:4)
-rank_values <- split(rank_values,row(rank_values))
-parLapply(cl,rank_values, function(ranks) {
-  # This package, available on GitHub at 'danieladamspencer/bayestensorreg' is
-  # required for simulating data and performing analyses
-  library(bayestensorreg)
-  # Read in the data
-  save_dir <- "~/github/BTRTucker/results/data_simulations"
-  sim_data <- readRDS(file.path(save_dir,"1_simulated_data.rds"))
-  # >> Perform the analyses using the bayestensorreg package ----
-  ftr_result <-
-    try(FTRTucker(
-      input = sim_data,
-      ranks = as.numeric(ranks),
-      epsilon = 1e-3,
-      betas_LASSO = F
-    ))
-  # >> Save the results for visualization and comparison ----
-  saveRDS(ftr_result,
-          file.path(
-            save_dir,
-            paste0(
-              "1_simulated_data_ftrtucker_results_rank",
-              paste(as.numeric(ranks), collapse = ""),
-              ".rds"
-            )
-          ))
-  return(NULL)
-})
-stopCluster(cl)
-
-# # > Frequentist CP ----
-# # This package, available on GitHub at 'danieladamspencer/bayestensorreg' is
-# # required for simulating data and performing analyses
-# library(bayestensorreg)
-# # Read in the data
-# save_dir <- "~/github/BTRTucker/results/data_simulations"
-# sim_data <- readRDS(file.path(save_dir,"1_simulated_data.rds"))
-# # Perform the analysis
-# sapply(seq(4), function(rank) {
+# # > Frequentist Tucker ----
+# library(parallel)
+# cl <- makeCluster(8)
+# # Set rank grid
+# rank_values <- expand.grid(r1 = 1:4, r2 = 1:4)
+# rank_values <- split(rank_values,row(rank_values))
+# parLapply(cl,rank_values, function(ranks) {
+#   # This package, available on GitHub at 'danieladamspencer/bayestensorreg' is
+#   # required for simulating data and performing analyses
+#   library(bayestensorreg)
+#   # Read in the data
+#   save_dir <- "~/github/BTRTucker/results/data_simulations"
+#   sim_data <- readRDS(file.path(save_dir,"1_simulated_data.rds"))
 #   # >> Perform the analyses using the bayestensorreg package ----
 #   ftr_result <-
-#     FTR_CP(
+#     try(FTRTucker(
+#       input = sim_data,
+#       ranks = as.numeric(ranks),
+#       epsilon = 1e-3,
+#       betas_LASSO = F
+#     ))
+#   # >> Save the results for visualization and comparison ----
+#   saveRDS(ftr_result,
+#           file.path(
+#             save_dir,
+#             paste0(
+#               "1_simulated_data_ftrtucker_results_rank",
+#               paste(as.numeric(ranks), collapse = ""),
+#               ".rds"
+#             )
+#           ))
+#   return(NULL)
+# })
+# stopCluster(cl)
+
+# # > Frequentist CP ----
+# library(parallel)
+# cl <- makeCluster(4)
+# # Perform the analysis
+# parLapply(cl,seq(4), function(rank) {
+#   # This package, available on GitHub at 'danieladamspencer/bayestensorreg' is
+#   # required for simulating data and performing analyses
+#   library(bayestensorreg)
+#   # Read in the data
+#   save_dir <- "~/github/BTRTucker/results/data_simulations"
+#   sim_data <- readRDS(file.path(save_dir,"1_simulated_data.rds"))
+#   # >> Perform the analyses using the bayestensorreg package ----
+#   ftr_result <-
+#     try(FTR_CP(
 #       input = sim_data,
 #       rank = as.numeric(rank),
-#       epsilon = 1e-4
-#     )
+#       epsilon = 1e-3
+#     ))
 #   # >> Save the results for visualization and comparison ----
 #   saveRDS(ftr_result,
 #           file.path(
@@ -154,3 +156,4 @@ stopCluster(cl)
 #           ))
 #   return(NULL)
 # })
+# stopCluster(cl)

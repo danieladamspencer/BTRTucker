@@ -96,28 +96,28 @@
 #   return(NULL)
 # })
 
-# > FTR Tucker ----
-ranks <- as.matrix(expand.grid(1:4,1:4))
-library(parallel)
-cl <- makeCluster(8) # Number of parallel cores
-parApply(cl, ranks, 1, function(r) {
-  library(bayestensorreg)
-  data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-  result_dir <- "~/github/BTRTucker/results/ADNI"
-  tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
-  tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-  tbm_data$eta <- tbm_data$eta[,-1]
-  set.seed(47408)
-  ftr_tucker <-
-    FTRTucker(
-      input = tbm_data,
-      ranks = r,
-      epsilon = 1e-1,
-      betas_LASSO = F
-    )
-  saveRDS(ftr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_FTRTucker_rank",paste(r,collapse = ""),".rds")))
-  return(NULL)
-})
+# # > FTR Tucker ----
+# ranks <- as.matrix(expand.grid(1:4,1:4))
+# library(parallel)
+# cl <- makeCluster(8) # Number of parallel cores
+# parApply(cl, ranks, 1, function(r) {
+#   library(bayestensorreg)
+#   data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+#   result_dir <- "~/github/BTRTucker/results/ADNI"
+#   tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
+#   tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
+#   tbm_data$eta <- tbm_data$eta[,-1]
+#   set.seed(47408)
+#   ftr_tucker <-
+#     try(FTRTucker(
+#       input = tbm_data,
+#       ranks = r,
+#       epsilon = 1e-1,
+#       betas_LASSO = F
+#     ))
+#   saveRDS(ftr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_FTRTucker_rank",paste(r,collapse = ""),".rds")))
+#   return(NULL)
+# })
 
 # # > FTR CP ----
 # # library(parallel)

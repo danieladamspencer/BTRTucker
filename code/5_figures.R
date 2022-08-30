@@ -76,12 +76,18 @@ library(bayestensorreg)
 btrt_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "btrtucker", value = T)
 
-# btrt_B <-sapply(btrt_files, function(fn){
-#   res <- readRDS(fn)
-#   out_B <- BTRT_final_B(res)
-#   return(out_B)
-# }, simplify = F)
-# saveRDS(btrt_B, file = "~/github/BTRTucker/results/data_simulations/5_btrt_B.rds")
+job::job({
+  library(parallel)
+  cl <- makeCluster(8)
+  btrt_B <- parLapply(cl,btrt_files, function(fn){
+    res <- readRDS(fn)
+    out_B <- BTRT_final_B(res)
+    return(out_B)
+  })
+  stopCluster(cl)
+  saveRDS(btrt_B, file = "~/github/BTRTucker/results/data_simulations/5_btrt_B.rds")
+}, import = c(btrt_files))
+
 btrt_B <- readRDS("~/github/BTRTucker/results/data_simulations/5_btrt_B.rds")
 library(tidyverse)
 btrt_df <-
@@ -216,6 +222,15 @@ btrt_dic <- sapply(btrt_files, function(fn){
   return(out)
 })
 which.min(btrt_dic)
+btrt_llik <- sapply(btrt_files, function(fn){
+  res <- readRDS(fn)
+  return(res$llik)
+})
+reshape2::melt(btrt_llik) |>
+  mutate(Var2 = factor(as.numeric(Var2))) |>
+  ggplot() +
+  geom_line(aes(x = Var1, y = value, color = Var2))
+
 # Ranks 4,4
 # > BTR CP ----
 btrcp_files <- list.files(result_dir, full.names = T) |>
@@ -228,6 +243,16 @@ btrcp_dic <- sapply(btrcp_files, function(fn){
 })
 which.min(btrcp_dic)
 # Rank 1
+# This is weird, so I'm going to look at the log-likelihood values
+btrcp_llik <- sapply(btrcp_files, function(fn){
+  res <- readRDS(fn)
+  return(res$llik)
+})
+apply(btrcp_llik,2,sd)
+reshape2::melt(btrcp_llik) |>
+  mutate(Var2 = factor(as.numeric(Var2))) |>
+  ggplot() +
+  geom_line(aes(x = Var1, y = value, color = Var2))
 # > FTR Tucker ----
 ftrt_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "ftrtucker", value = T) |>
@@ -239,7 +264,7 @@ ftrt_aic <- sapply(ftrt_files, function(fn){
   return(aic_out)
 })
 which.min(ftrt_aic)
-# Ranks 1,1 # Ranks 2,2 now with better stopping rules
+# Ranks 1,1 # Ranks 2,2 now with better stopping rules # Ranks 4,4 after bugfix
 # > FTR CP ----
 ftrcp_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "ftr_cp", value = T)
@@ -250,7 +275,7 @@ ftrcp_aic <- sapply(ftrcp_files, function(fn){
   return(aic_out)
 })
 which.min(ftrcp_aic)
-# Rank 4
+# Rank 3
 # > Merge the best models dfs together ----
 best_df <- filter(btrt_df,R1 == 4, R2 == 4) |>
   mutate(Model = "BTR Tucker 4,4") |>
@@ -261,17 +286,23 @@ best_df <- filter(btrt_df,R1 == 4, R2 == 4) |>
       select(Var1, Var2, value, Model)
   ) |>
   full_join(
-    filter(ftrt_df,R1 == 1, R2 == 1) |>
-      mutate(Model = "FTR Tucker 2,2") |>
+    filter(ftrt_df,R1 == 4, R2 == 4) |>
+      mutate(Model = "FTR Tucker 4,4") |>
       select(Var1, Var2, value, Model)
   ) |>
   full_join(
-    filter(ftrcp_df,R == 1) |>
-      mutate(Model = "FTR CP 4") |>
+    filter(ftrcp_df,R == 3) |>
+      mutate(Model = "FTR CP 3") |>
       select(Var1, Var2, value, Model)
-  )
+  ) |>
+  mutate(Model = factor(Model, levels = c("FTR CP 3","FTR Tucker 4,4","BTR CP 1", "BTR Tucker 4,4")))
+
 # > Plot ----
-best_plt <- ggplot(best_df) +
+best_plt <-
+  best_df |>
+  mutate(value = ifelse(value < -1, -1, value),
+         value = ifelse(value > 1, 1, value)) |>
+  ggplot() +
   geom_tile(aes(x = Var1, y = Var2, fill = value))+
   scale_fill_gradient2("",high = "blue",low = "red",mid = "white", limits = c(-1,1)) +
   # guides(fill = "none", alpha = "none") +
@@ -288,10 +319,10 @@ best_plt <- ggplot(best_df) +
 best_plt
 
 ggsave(filename = "~/github/BTRTucker/plots/5_simulated_best_B.png",
-       plot = best_plt, width = 16, height = 3)
+       plot = best_plt, width = 16, height = 4)
 
 # Plot the estimates and densities of gamma ----
-best_files <- c(btrt_files[16],btrcp_files[1],ftrt_files[1],ftrcp_files[4])
+best_files <- c(btrt_files[16],btrcp_files[1],ftrt_files[16],ftrcp_files[3])
 btrt_gam <- readRDS(best_files[1])$gam
 btrcp_gam <- readRDS(best_files[2])$gam
 ftrt_gam <- readRDS(best_files[3])$gam
@@ -299,10 +330,10 @@ ftrcp_gam <- readRDS(best_files[4])$gam
 
 ftr_df <-
   reshape2::melt(t(unname(ftrt_gam))) |>
-  mutate(Model = "FTR Tucker 1,1") |>
+  mutate(Model = "FTR Tucker 4,4") |>
   full_join(
     reshape2::melt(t(unname(ftrcp_gam))) |>
-      mutate(Model = "FTR CP 4")
+      mutate(Model = "FTR CP 3")
   )
 
 true_df <- data.frame(
@@ -343,16 +374,18 @@ result_dir <- "~/github/BTRTucker/results/ADNI/"
 btrt_tbm_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "BTRTucker_slice080_rank", value = T)
 
-job::job({
-  library(bayestensorreg)
-  btrt_tbm_B <-sapply(btrt_tbm_files, function(fn){
-  res <- readRDS(fn)
-  out_B <- BTRT_final_B(res)
-  return(out_B)
-}, simplify = F)
-}, import = c(btrt_tbm_files))
-saveRDS(btrt_tbm_B, file = "~/github/BTRTucker/results/ADNI/5_btrt_slice080_tbm_B.rds")
+# job::job({
+#   library(parallel)
+#   cl <- makeCluster(8)
+#   btrt_tbm_B <- parLapply(cl,btrt_tbm_files, function(fn){
+#     library(bayestensorreg)
+#     res <- readRDS(fn)
+#     out_B <- BTRT_final_B(res)
+#   return(out_B)})
+#   saveRDS(btrt_tbm_B, file = "~/github/BTRTucker/results/ADNI/5_btrt_slice080_tbm_B.rds")
+# }, import = c(btrt_tbm_files))
 btrt_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrt_slice080_tbm_B.rds")
+names(btrt_tbm_B) <- btrt_tbm_files
 
 library(tidyverse)
 library(oro.nifti)
@@ -373,8 +406,8 @@ template_grob <-
 template_grob <- ggplotGrob(template_grob)
 btrt_tbm_df <-
   reshape2::melt(btrt_tbm_B) |>
-  mutate(R1 = substring(L1,81,81),
-         R2 = substring(L1,82,82),
+  mutate(R1 = substring(L1,80,80),
+         R2 = substring(L1,81,81),
          value = value / (2e-6),
          value = ifelse(value > 1,1,value),
          value = value * (2e-6),
@@ -398,7 +431,7 @@ btrt_tbm_plt <- ggplot(btrt_tbm_df) +
         text = element_text(size = 18),
         aspect.ratio = 1)
 btrt_tbm_plt
-ggsave(filename = "~/github/BTRTucker/plots/5_btrt_slice080_tbm_B.png", plot = btrt_tbm_plt, width = 16, height = 9)
+ggsave(filename = "~/github/BTRTucker/plots/5_btrt_slice080_tbm_B.png", plot = btrt_tbm_plt, width = 11, height = 9)
 
 # > FTR Tucker ----
 ftrt_tbm_files <- list.files(result_dir, full.names = T) |>
@@ -406,8 +439,11 @@ ftrt_tbm_files <- list.files(result_dir, full.names = T) |>
 
 ftrt_tbm_B <- sapply(ftrt_tbm_files, function(fn){
   res <- readRDS(fn)
-  return(res$B)
+  if(class(res) == "list"){
+    return(res$B)
+  }else{return(NULL)}
 }, simplify = F)
+ftrt_tbm_B <- ftrt_tbm_B[!sapply(ftrt_tbm_B,is.null)]
 
 library(tidyverse)
 library(oro.nifti)
@@ -428,18 +464,25 @@ template_grob <-
 template_grob <- ggplotGrob(template_grob)
 ftrt_tbm_df <-
   reshape2::melt(ftrt_tbm_B) |>
-  mutate(R1 = substring(L1,72,72),
-         R2 = substring(L1,73,73),
-         value = value / (1e-3),
-         value = ifelse(abs(value) > 1,sign(value)*1,value),
-         value = value * (1e-3),
+  mutate(R1 = substring(L1,71,71),
+         R2 = substring(L1,72,72),
+         # value = value / (1e-3),
+         # value = ifelse(abs(value) > 1,sign(value)*1,value),
+         # value = value * (1e-3),
          matchRank = R1 == R2) |>
   select(-L1)
+ftrt_lim <- quantile(ftrt_tbm_df$value, probs = c(0.99))
+ftrt_tbm_df <-
+  mutate(ftrt_tbm_df,
+         value = value / ftrt_lim,
+         value = ifelse(abs(value) > 1,sign(value)*1,value),
+         value = value * ftrt_lim,
+         )
 ftrt_tbm_plt <- ggplot(ftrt_tbm_df) +
   annotation_custom(grob = template_grob) +
   geom_raster(aes(x = Var1, y = Var2, fill = value,alpha = value))+
   scale_fill_gradient2("",high = "blue",low = "red",mid = "black",na.value = "black",
-                       limits = c(-1e-3,1e-3)
+                       limits = c(-ftrt_lim,ftrt_lim)
   ) +
   guides(alpha = "none") +
   facet_grid(R1 ~ R2, scales = "free",
@@ -480,11 +523,15 @@ ftrt_tbm_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "FTRTucker_rank", value = T)
 ftrt_tbm_aic <- sapply(ftrt_tbm_files, function(fn){
   res <- readRDS(fn)
-  num_params <- length(res$gam) + length(unlist(res$betas)) + length(c(res$G))
-  aic_out <- 2 * num_params - 2 * res$llik
-  return(aic_out)
+  if(class(res) == "try-error"){
+    return(Inf)
+  }else{
+    num_params <- length(res$gam) + length(unlist(res$betas)) + length(c(res$G))
+    aic_out <- 2 * num_params - 2 * res$llik
+    return(aic_out)
+  }
 })
-which.min(ftrt_tbm_aic) # Rank 1,1 # Rank 4,4 when age and gender are included
+which.min(ftrt_tbm_aic) # Rank 1,1 # Rank 4,4 when age and gender are included # Rank 1,1 after bugfix
 ftrt_tbm_best_res <- readRDS(ftrt_tbm_files[which.min(ftrt_tbm_aic)])
 ftrt_tbm_best_B <- ftrt_tbm_best_res$B
 
@@ -823,7 +870,7 @@ small3_trace_plt
 ggsave(filename = "~/github/BTRTucker/plots/5_small3_tbm_trace.png",plot = small3_trace_plt, width = 8, height = 5)
 
 # Make AAL atlas and register to MDT ----
-aal_dir <- "~/Downloads/aal_for_SPM12/atlas"
+aal_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11/aal_for_SPM12/atlas"
 data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
 library(fslr)
 library(oro.nifti)
