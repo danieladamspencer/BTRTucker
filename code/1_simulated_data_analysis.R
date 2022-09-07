@@ -157,3 +157,23 @@
 #   return(NULL)
 # })
 # stopCluster(cl)
+
+# > General Linear Model ----
+save_dir <- "~/github/BTRTucker/results/data_simulations"
+sim_data <- readRDS(file.path(save_dir,"1_simulated_data.rds"))
+ytil <- lm(sim_data$y ~ -1 + sim_data$eta)$residuals
+library(parallel)
+cl <- makeCluster(8)
+glm_B <- parApply(cl,sim_data$X,1:2,function(x,ytil) {
+  out <- lm(ytil ~ -1 + x)$coefficients
+  return(out)
+}, ytil = ytil)
+glm_pvals <- parApply(cl,sim_data$X,1:2,function(x,ytil) {
+  out <- summary(lm(ytil ~ -1 + x))$coefficients[4]
+  return(out)
+}, ytil = ytil)
+glm_pvals2 <- matrix(p.adjust(c(glm_pvals),"BH"),nrow = nrow(glm_pvals),ncol = ncol(glm_pvals))
+glm_active <- matrix(as.numeric(glm_pvals < 0.05),nrow = nrow(glm_pvals),ncol = ncol(glm_pvals))
+final_glm_B <- glm_B * glm_active
+reshape2::melt(final_glm_B) |> ggplot() + geom_raster(aes(x = Var1, y = Var2, fill = value))
+saveRDS(final_glm_B, file = file.path(save_dir, "1_glm_B.rds"))

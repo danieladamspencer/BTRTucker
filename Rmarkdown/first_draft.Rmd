@@ -1,0 +1,31 @@
+---
+title: "Parsimonious Bayesian Sparse Tensor Regression Using the Tucker Tensor Decomposition"
+author: "Daniel Spencer, Rajarshi Guhaniyogi, Russel Shinohara, Raquel Prado"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    fig_caption: yes
+    keep_tex: yes
+    number_sections: yes
+abstract: "Multidimensional data structures called tensors require special treatment in a modeling setting due to their potentially large structures. In many cases, these structures produce models with inherent sparsity, requiring the use of regularization methods to properly characterize an association between a covariate and a response. In this paper, we propose a Bayesian method to parsimoniously model a scalar response with a tensor-valued covariate using the Tucker tensor decomposition. This method retains the spatial relationship within a tensor-valued covariate, while reducing the number of parameters varying within the model. Simulated data is analyzed to demonstrate model effectiveness, with comparisons made to both classical and Bayesian methods. A neuroimaging analysis using data from the Alzheimer's Data Neuroimaging Initiative is also included."
+bibliography: 
+  - "/Users/danspen/github/BTRTucker/Rmarkdown/first_draft.bib"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# Introduction (\#sec:introduction)
+
+Image analysis has become an important application area with the development of computer memory that allows for storing large datasets on local computing machines. Indeed, machine learning applications of image analysis are now present in many fields of research, such as medical imaging, character translation, and self-driving cars. In many of these cases, a linear model that provides inferential and/or prediction capabilities is all that is required. Such models have been shown to be very effective in settings with billions or trillions of observed data points. However, scenarios in which models are built on smaller sample sizes suffer from low sensitivity without imposing additional constraints or assumptions.
+	
+	The field of medical imaging is particularly rich in methods dealing with large datasets and small sample sizes. Since its inception with the discovery of X-rays in 1895 \citep{bercovich2018medical}, the field has grown to be a major component of modern medicine. The digitization of medical imaging in recent decades has opened the doors to analysts outside the purview of local hospitals and radiology centers, lifting some of the burden of diagnosis from  radiologists and reducing the rate of medical errors \citep{bruno2015understanding}. This shift also allows researchers to develop new models that can provide insight into how bodily mechanisms work inside living subjects by enabling the combined analysis over a number of subjects, improving statistical power. Due to the clinical importance of inference and prediction from these models, any assumptions and constraints must be carefully applied. 
+	
+	Several methods are already in use for these types of data within the neuroimaging community. One of the most commonly-used methods is referred to as the general linear model (GLM), which is not to be confused with the generalized linear model that is commonly used in statistics. This model performs a massive univariate analysis in which the response is regressed independently on each cell within a tensor covariate, in addition to any additional vector covariates \citep{friston1995spatial,penny2011statistical}. These models have the advantage of being relatively computationally inexpensive and easily parallelizable. However, they also assume that the associations between different cells in the tensor and the response are all independent and not necessarily sparse. In practice, different multiple testing corrections are used to preserve spatial relationships among proximal cells via independent components analysis, though work by \cite{eklund2016cluster} suggests that these inflate the false discovery rate. Methods that control the false discovery rate are appealing \citep{benjamini1995controlling, lindquist2015zen}, but they fail to take spatial relationships within the tensor coefficient into account.
+	
+	A different class of approaches takes advantage of the tensor structure of the data by decomposing the tensor covariates using one of two tensor decompositions and imposing regularization constraints. Work done by \cite{zhou2013tensor} uses the parallel factorization/canonical polyadic (PARAFAC/CP) tensor decomposition in a classical tensor regression approach, which assumes that dimension margins are principal components of the tensor coefficients. This was expanded in the work by \cite{li2018tucker} in the use of the more flexible Tucker decomposition. \cite{guhaniyogi2017bayesian} created a novel Bayesian prior structure on the PARAFAC/CP tensor decomposition elements, which improved on the uncertainty quantification from the model inference.
+	
+	In this article, we outline the Bayesian Tensor Regression with Tucker (BTRT) model that satisfies the careful implementation of assumptions of sparsity and spatial similarity within a tensor-valued coefficient. This is accomplished through the use of the Tucker tensor decomposition \citep{tucker1966some}, a more flexible extension of the PARAFAC/CP decomposition. In section \@ref{sec:Methodology}, we outline the BTRT model and its competitors. In section \ref{sec:simulateddata}, we show the efficiency and accuracy of the model over a number of competitors using simulated data. In section \ref{sec:RealData}, the BTRT model and its competitors are applied in a neuroimaging analysis of data from the Alzheimer's Disease Neuroimaging Initiative. Section \ref{sec:Discussion} outlines our conclusions and possible research extensions.
+	
+# Methodology (\#sec:methodology)
