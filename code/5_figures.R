@@ -75,11 +75,19 @@ result_dir <- "~/github/BTRTucker/results/data_simulations"
 library(bayestensorreg)
 btrt_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "btrtucker", value = T)
+# Now using the rank selection pattern to find the optimal rank
+btrt_rank_sel <- c(sapply(1:5,function(x) paste(rep(x,2),collapse = "")),"34","43")
+final_btrt_files <- character()
+for(btrt_rank in btrt_rank_sel){
+  final_btrt_files <- c(final_btrt_files,grep(pattern = btrt_rank, btrt_files,value = T))
+}
+btrt_files <- final_btrt_files
 
 job::job({
   library(parallel)
-  cl <- makeCluster(8)
+  cl <- makeCluster(7)
   btrt_B <- parLapply(cl,btrt_files, function(fn){
+    library(bayestensorreg)
     res <- readRDS(fn)
     out_B <- BTRT_final_B(res)
     return(out_B)
@@ -89,6 +97,7 @@ job::job({
 }, import = c(btrt_files))
 
 btrt_B <- readRDS("~/github/BTRTucker/results/data_simulations/5_btrt_B.rds")
+names(btrt_B) <- btrt_files
 library(tidyverse)
 btrt_df <-
   reshape2::melt(btrt_B) |>
@@ -108,6 +117,8 @@ btrt_plt <- ggplot(btrt_df) +
   theme(axis.text = element_blank(),
         axis.title = element_blank(),
         axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_rect(color = "grey50"),
         text = element_text(size = 18),
         aspect.ratio = 1)
 btrt_plt
@@ -311,19 +322,44 @@ kable(ftrt_rmse, digits = 4, "latex")
 kable(ftrcp_rmse, digits = 4, "latex")
 kable(btrt_rmse, digits = 4, "latex")
 kable(btrcp_rmse, digits = 4, "latex")
+
+# Simulated data median ESS ----
+result_dir <- "~/github/BTRTucker/results/data_simulations"
+btrt_files <- list.files(result_dir, full.names = T) |>
+  grep(pattern = "btrtucker_results_rank", value = T)
+
+library(bayestensorreg)
+library(coda)
+job::job({
+  btrt_ess <- sapply(btrt_files, function(fn) {
+    res <- readRDS(fn)
+    allB <- BTRT_all_B(res)
+    allB_vec <- t(apply(allB,3,identity))
+    allESS <- coda::effectiveSize(allB_vec)
+    return(median(allESS))
+  })
+},  import = c(btrt_files))
+
 # Simulated data best coefficients ----
 result_dir <- "~/github/BTRTucker/results/data_simulations"
 library(bayestensorreg)
 # > BTRT ----
 btrt_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "btrtucker", value = T)
+# Now using the rank selection pattern to find the optimal rank
+btrt_rank_sel <- c(sapply(1:5,function(x) paste(rep(x,2),collapse = "")),"34","43")
+final_btrt_files <- character()
+for(btrt_rank in btrt_rank_sel){
+  final_btrt_files <- c(final_btrt_files,grep(pattern = btrt_rank, btrt_files,value = T))
+}
+btrt_files <- final_btrt_files
 btrt_dic <- sapply(btrt_files, function(fn){
   library(bayestensorreg)
   res <- readRDS(fn)
   out <- DIC(res$llik, burn_in = 1000)
   return(out)
 })
-which.min(btrt_dic)
+which.min(btrt_dic) # Rank 4,4
 btrt_llik <- sapply(btrt_files, function(fn){
   res <- readRDS(fn)
   return(res$llik)
@@ -343,7 +379,7 @@ btrcp_dic <- sapply(btrcp_files, function(fn){
   out <- DIC(res$llik, burn_in = 1000)
   return(out)
 })
-which.min(btrcp_dic)
+which.min(btrcp_dic) # Rank 1
 # Rank 1
 # This is weird, so I'm going to look at the log-likelihood values
 btrcp_llik <- sapply(btrcp_files, function(fn){
@@ -372,9 +408,10 @@ ftrt_bic <- sapply(ftrt_files, function(fn){
   bic_out <-  log(sample_size) * num_params - 2 * res$llik
   return(bic_out)
 })
-which.min(ftrt_aic)
-which.min(ftrt_bic)
-# Ranks 1,1 # Ranks 2,2 now with better stopping rules # Ranks 4,4 after bugfix
+cbind(ftrt_aic,ftrt_bic)
+which.min(ftrt_aic) # Ranks 1,1 # Ranks 2,2 now with better stopping rules # Ranks 4,4 after bugfix, extended to 5,5 with new rank selection algorithm
+which.min(ftrt_bic) # Ranks 2,2
+
 # > FTR CP ----
 ftrcp_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "ftr_cp", value = T)
@@ -384,8 +421,17 @@ ftrcp_aic <- sapply(ftrcp_files, function(fn){
   aic_out <- 2 * num_params - 2 * res$llik
   return(aic_out)
 })
-which.min(ftrcp_aic)
-# Rank 3
+ftrcp_bic <- sapply(ftrcp_files, function(fn){
+  sample_size <- 1000
+  res <- readRDS(fn)
+  num_params <- length(res$gam) + length(unlist(res$betas))
+  bic_out <-  log(sample_size) * num_params - 2 * res$llik
+  return(bic_out)
+})
+cbind(ftrcp_aic,ftrcp_bic)
+which.min(ftrcp_aic) # Rank 4, Rank 6 with new rank selection algorithm
+which.min(ftrcp_bic) # Rank 4, Rank 5 with new rank selection algorithm
+
 # > GLM ----
 glm_B <- readRDS(file.path(result_dir,"1_glm_B.rds"))
 glm_B_df <- reshape2::melt(glm_B)
@@ -453,7 +499,8 @@ ggsave(filename = "~/github/BTRTucker/plots/5_simulated_best_B.png",
 
 # Plot the estimates and densities of gamma ----
 sim_data <- readRDS("~/github/BTRTucker/results/data_simulations/1_simulated_data.rds")
-best_files <- c(btrt_files[16],btrcp_files[1],ftrt_files[16],ftrcp_files[4])
+# I changed this on 9-20-2022 to compare the results from the fours models with the highest ranks
+best_files <- c(btrt_files[which.min(btrt_dic)],btrcp_files[4],ftrt_files[16],ftrcp_files[4])
 btrt_gam <- readRDS(best_files[1])$gam
 btrcp_gam <- readRDS(best_files[2])$gam
 ftrt_gam <- readRDS(best_files[3])$gam
@@ -485,7 +532,7 @@ best_gam_plt <- reshape2::melt(btrt_gam) |>
   mutate(Model = "BTR Tucker 4,4") |>
   full_join(
     reshape2::melt(btrcp_gam) |>
-      mutate(Model = "BTR CP 1")
+      mutate(Model = "BTR CP 4")
   ) |>
   ggplot() +
   stat_density(aes(x = value, fill = Model, color = Model), alpha = 0.3,position = "identity") +
@@ -503,7 +550,7 @@ best_gam_plt <- reshape2::melt(btrt_gam) |>
         text = element_text(size=18))
 best_gam_plt
 
-ggsave(filename = "~/github/BTRTucker/plots/5_simulated_best_gam.png",plot = best_gam_plt,width = 16, height =3)
+ggsave(filename = "~/github/BTRTucker/plots/5_simulated_gam_w_btrcp4.png",plot = best_gam_plt,width = 16, height =3)
 
 # Simulated data log-likelihood ----
 result_dir <- "~/github/BTRTucker/results/data_simulations"
@@ -558,20 +605,21 @@ ggsave(filename = file.path(plot_dir,"5_sim_llik.png"), plot = llik_plt,
 # Plot the TBM B ----
 result_dir <- "~/github/BTRTucker/results/ADNI/"
 # > BTR Tucker ----
-btrt_tbm_files <- list.files(result_dir, full.names = T) |>
-  grep(pattern = "BTRTucker_slice080_rank", value = T)
+btrt_result_dir <- "~/github/BTRTucker/results/ADNI/BTRTucker_11k"
+btrt_tbm_files <- list.files(btrt_result_dir, full.names = T) |>
+  grep(pattern = "BTRTucker_rank", value = T)
 
 # job::job({
 #   library(parallel)
-#   cl <- makeCluster(8)
+#   cl <- makeCluster(9)
 #   btrt_tbm_B <- parLapply(cl,btrt_tbm_files, function(fn){
 #     library(bayestensorreg)
 #     res <- readRDS(fn)
 #     out_B <- BTRT_final_B(res)
 #   return(out_B)})
-#   saveRDS(btrt_tbm_B, file = "~/github/BTRTucker/results/ADNI/5_btrt_slice080_tbm_B.rds")
+#   saveRDS(btrt_tbm_B, file = file.path(btrt_result_dir,"5_btrt_slice080_tbm_B.rds"))
 # }, import = c(btrt_tbm_files))
-btrt_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrt_slice080_tbm_B.rds")
+btrt_tbm_B <- readRDS(file.path(btrt_result_dir,"5_btrt_slice080_tbm_B.rds"))
 names(btrt_tbm_B) <- btrt_tbm_files
 
 library(tidyverse)
@@ -593,8 +641,10 @@ template_grob <-
 template_grob <- ggplotGrob(template_grob)
 btrt_tbm_df <-
   reshape2::melt(btrt_tbm_B) |>
-  mutate(R1 = substring(L1,81,81),
-         R2 = substring(L1,82,82),
+  mutate(#R1 = substring(L1,71,71),
+         #R2 = substring(L1,72,72),
+         R1 = substring(L1, 85,85),
+         R2 = substring(L1,86,86),
          value = value / (1e-5),
          value = ifelse(value > 1,1,value),
          value = value * (1e-5),
@@ -608,7 +658,7 @@ btrt_tbm_plt <- ggplot(btrt_tbm_df) +
                        ) +
   guides(alpha = "none") +
   facet_grid(R1 ~ R2, scales = "free",
-             labeller = label_bquote(rows = R1 == .(R1), cols = R2 == .(R2))) +
+             labeller = label_bquote(rows = R[1] == .(R1), cols = R[2] == .(R2))) +
   scale_x_continuous(expand = c(0,0)) +
   scale_y_continuous(expand = c(0,0)) +
   theme_bw() +
@@ -618,7 +668,7 @@ btrt_tbm_plt <- ggplot(btrt_tbm_df) +
         text = element_text(size = 18),
         aspect.ratio = 1)
 btrt_tbm_plt
-ggsave(filename = "~/github/BTRTucker/plots/5_btrt_slice080_tbm_B.png", plot = btrt_tbm_plt, width = 11, height = 9)
+ggsave(filename = "~/github/BTRTucker/plots/5_btrt_slice080_11k_tbm_B.png", plot = btrt_tbm_plt, width = 11, height = 9)
 
 # > BTR CP ----
 btrcp_tbm_files <- list.files(result_dir, full.names = T) |>
@@ -718,8 +768,8 @@ template_grob <-
 template_grob <- ggplotGrob(template_grob)
 ftrt_tbm_df <-
   reshape2::melt(ftrt_tbm_B) |>
-  mutate(R1 = substring(L1,72,72),
-         R2 = substring(L1,73,73),
+  mutate(R1 = substring(L1,71,71),
+         R2 = substring(L1,72,72),
          # value = value / (1e-3),
          # value = ifelse(abs(value) > 1,sign(value)*1,value),
          # value = value * (1e-3),
@@ -740,7 +790,7 @@ ftrt_tbm_plt <- ggplot(ftrt_tbm_df) +
   ) +
   guides(alpha = "none") +
   facet_grid(R1 ~ R2, scales = "free",
-             labeller = label_bquote(rows = R1 == .(R1), cols = R2 == .(R2))) +
+             labeller = label_bquote(rows = R[1] == .(R1), cols = R[2] == .(R2))) +
   scale_x_continuous(expand = c(0,0)) +
   scale_y_continuous(expand = c(0,0)) +
   theme_bw() +
@@ -752,39 +802,180 @@ ftrt_tbm_plt <- ggplot(ftrt_tbm_df) +
 ftrt_tbm_plt
 ggsave(filename = "~/github/BTRTucker/plots/5_ftrt_slice080_tbm_B.png", plot = ftrt_tbm_plt, width = 11, height = 9)
 
+# > FTR CP ----
+ftrcp_tbm_files <- list.files(result_dir, full.names = T) |>
+  grep(pattern = "TBM_FTR_CP_rank", value = T)
+
+ftrcp_tbm_B <- sapply(ftrcp_tbm_files, function(fn){
+  res <- readRDS(fn)
+  if(class(res) == "list"){
+    return(res$B)
+  }else{return(NULL)}
+}, simplify = F)
+ftrcp_tbm_B <- ftrcp_tbm_B[!sapply(ftrcp_tbm_B,is.null)]
+
+library(tidyverse)
+library(oro.nifti)
+mdt_template <- readNIfTI("~/github/BTRTucker/data/ADNI/ADNI 11/ADNI_MDT/ADNI_ICBM9P_mni_4step_MDT.nii.gz")
+library(fslr)
+mdt_template <- fslbet(mdt_template)
+template_grob <-
+  # mni_template@.Data[,,91] |>
+  mdt_template@.Data[,,80] |>
+  reshape2::melt() |>
+  ggplot() +
+  geom_raster(aes(x = Var1, y = Var2, fill = value)) +
+  scale_fill_distiller(palette = "Greys") +
+  guides(fill = "none") +
+  theme_void() +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0))
+template_grob <- ggplotGrob(template_grob)
+ftrcp_tbm_df <-
+  reshape2::melt(ftrcp_tbm_B) |>
+  mutate(Rank = substring(L1,68,68)) |>
+         # value = value / (1e-3),
+         # value = ifelse(abs(value) > 1,sign(value)*1,value),
+         # value = value * (1e-3),
+         # matchRank = R1 == R2) |>
+  select(-L1)
+ftrcp_lim <- quantile(ftrcp_tbm_df$value, probs = c(0.99))
+ftrcp_tbm_df <-
+  mutate(ftrcp_tbm_df,
+         value = value / ftrcp_lim,
+         value = ifelse(abs(value) > 1,sign(value)*1,value),
+         value = value * ftrcp_lim,
+  )
+ftrcp_tbm_plt <- ggplot(ftrcp_tbm_df) +
+  annotation_custom(grob = template_grob) +
+  geom_raster(aes(x = Var1, y = Var2, fill = value,alpha = value))+
+  scale_fill_gradient2("",high = "blue",low = "red",mid = "black",na.value = "black",
+                       limits = c(-ftrcp_lim,ftrcp_lim)
+  ) +
+  guides(alpha = "none") +
+  facet_grid(~ Rank, scales = "free",
+             labeller = label_bquote(cols = Rank == .(Rank))) +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_bw() +
+  theme(axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        text = element_text(size = 18),
+        aspect.ratio = 1)
+ftrcp_tbm_plt
+ggsave(filename = "~/github/BTRTucker/plots/5_ftrcp_slice080_tbm_B.png", plot = ftrcp_tbm_plt, width = 16, height = 3)
+
 # Best TBM B ----
 library(bayestensorreg)
 library(tidyverse)
-result_dir <- "~/github/BTRTucker/results/ADNI"
+library(ggrepel)
+result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
 # > BTR Tucker ----
+# btrt_result_dir <- "~/github/BTRTucker/results/ADNI/BTRTucker_11k_EDA"
 btrt_tbm_files <- list.files(result_dir, full.names = T) |>
-  grep(pattern = "BTRTucker_slice080_rank", value = T)
-btrt_tbm_dic <- sapply(btrt_tbm_files, function(fn){
+  grep(pattern = "BTRTucker_rank", value = T)
+# rep_ranks <- sapply(2:3, function(x) paste(rep(x,2),collapse = ""))
+# final_btrt_tbm_files <- character()
+# for(rr in rep_ranks) {
+#   final_btrt_tbm_files <- c(final_btrt_tbm_files,grep(pattern = rr, btrt_tbm_files, value = T))
+# }
+# btrt_tbm_files <- final_btrt_tbm_files
+# >> Verify log-likelihoods ----
+btrt_tbm_lliks <- sapply(btrt_tbm_files, function(fn){
   res <- readRDS(fn)
-  dic_out <- DIC(res$llik, burn_in = 500)
-  return(dic_out)
+  return(as.matrix(res$llik))
+}, simplify = F)
+btrt_tbm_llik_df <-
+  reshape2::melt(btrt_tbm_lliks) |>
+  mutate(#R1 = substring(L1,71,71),
+         #R2 = substring(L1,72,72),
+         R1 = substring(L1, 89,89),
+         R2 = substring(L1,90,90),
+         Rank = paste(R1,",",R2)) |>
+  dplyr::select(Var1,R1,R2,Rank,value)
+btrt_tbm_llik_ends <- filter(btrt_tbm_llik_df, Var1 == max(Var1))
+ggplot(btrt_tbm_llik_df) +
+  geom_line(aes(x = Var1, y = value, color = Rank)) +
+  geom_text_repel(aes(x = Var1, y = value, label = Rank),
+                  nudge_x = 100, direction = "x", nudge_y = 100,
+                  data = btrt_tbm_llik_ends) +
+  labs(y = "log-likelihood",x="MCMC Iteration") +
+  facet_grid(R1 ~ R2) +
+  guides(color = "none") +
+  theme_bw() +
+  theme(text = element_text(size = 18))
+dplyr::group_by(btrt_tbm_llik_df, Rank) |>
+  dplyr::summarize(mean_llik = mean(value),
+            sd_llik = sd(value),
+            var_llik = var(value)) |>
+  ggplot(aes(x = mean_llik,y = sd_llik)) +
+  geom_point() +
+  geom_text(aes(label = Rank)) +
+  scale_y_continuous(trans = "log10")
+# Note that all the models with at least one R_j = 1 diverged when 11,000 samples are taken -> identifiability issue with low margin ranks
+btrt_tbm_dic <- sapply(btrt_tbm_files, function(fn){
+  # if(length(grep(pattern = "1",fn)) == 1){return(Inf)}else{
+    res <- readRDS(fn)
+    dic_out <- DIC(res$llik, burn_in = 1000)
+    return(dic_out)
+  # }
 })
-which.min(btrt_tbm_dic) # Rank 3,2 # Rank 4,2 for slice 080 # Rank 1,2 for slice 080 with age and gender added in
+which.min(btrt_tbm_dic) # Rank 3,2 # Rank 4,2 for slice 080 # Rank 1,2 for slice 080 with age and gender added in # Rank 4,4 after 11000 samples # Rank 2, 3 after rerunning # Now rank 2,2 following the rank selection algorithm # And finally rank 3,3 after proper EDA
+# Something to note here is that the DIC is a linear combination of mean and variance of the log-likelihood, so optimizing over both summary statistics is required.
 btrt_tbm_best_res <- readRDS(btrt_tbm_files[which.min(btrt_tbm_dic)])
-btrt_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrt_slice080_tbm_B.rds")
-btrt_tbm_best_B <- btrt_tbm_B[[which.min(btrt_tbm_dic)]]
+# btrt_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrt_slice080_tbm_B.rds")
+# btrt_tbm_best_B <- btrt_tbm_B[[which.min(btrt_tbm_dic)]]
+btrt_tbm_best_B <- BTRT_final_B(btrt_tbm_best_res)
+
+btrt_tbm_all_B <- BTRT_all_B(btrt_tbm_best_res)
+btrt_tbm_vec_B <- apply(btrt_tbm_all_B,3,identity)
+btrt_tbm_all_eff_B <- coda::effectiveSize(t(btrt_tbm_vec_B))
+quantile(btrt_tbm_all_eff_B,probs = c(.01,.99))
+
+reshape2::melt(btrt_tbm_best_B) |>
+  mutate(value = ifelse(abs(value) > 1e-5,sign(value) * 1e-5,value)) |>
+  left_join(insideAAL) |>
+  mutate(value = value * mask) |>
+  ggplot() +
+  annotation_custom(grob = aal_template) +
+  geom_raster(aes(x = Var1, y = Var2, fill = value,
+                  alpha = abs(value) / 1e-5
+                  # alpha = abs(value) / 6e-2
+  )) +
+  scale_fill_gradient2("",high = "blue",low = "red",
+                       mid = "black",
+                       limits = c(-1e-5,1e-5),
+                       na.value = "black"
+  ) +
+  guides(alpha = "none") +
+  # facet_grid(~ Model, scales = "free") +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_bw() +
+  theme(axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        text = element_text(size = 18),
+        aspect.ratio = 1)
 
 # > BTR CP ----
 # all BTR CP models fail due to infinite values in the posterior precision of beta
-# btrcp_tbm_best_B <- matrix(0,220,220)
-btrcp_tbm_files <- list.files(result_dir, full.names = T) |>
-  grep(pattern = "BTR_CP_rank", value = T)
-library(bayestensorreg)
-btrcp_tbm_dic <- sapply(btrcp_tbm_files, function(fn){
-  res <- readRDS(fn)
-  out_llik <- res$llik[res$llik != 0]
-  dic_out <- DIC(out_llik, burn_in = 0)
-  return(dic_out)
-})
-which.min(btrcp_tbm_dic)
-btrcp_tbm_best_res <- readRDS(btrcp_tbm_files[which.min(btrcp_tbm_dic)])
-btrcp_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrcp_slice080_tbm_B.rds")
-btrcp_tbm_best_B <- btrcp_tbm_B[[which.min(btrcp_tbm_dic)]]
+btrcp_tbm_best_B <- matrix(0,220,220)
+# btrcp_tbm_files <- list.files(result_dir, full.names = T) |>
+#   grep(pattern = "BTR_CP_rank", value = T)
+# library(bayestensorreg)
+# btrcp_tbm_dic <- sapply(btrcp_tbm_files, function(fn){
+#   res <- readRDS(fn)
+#   out_llik <- res$llik[res$llik != 0]
+#   dic_out <- DIC(out_llik, burn_in = 0)
+#   return(dic_out)
+# })
+# which.min(btrcp_tbm_dic)
+# btrcp_tbm_best_res <- readRDS(btrcp_tbm_files[which.min(btrcp_tbm_dic)])
+# btrcp_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrcp_slice080_tbm_B.rds")
+# btrcp_tbm_best_B <- btrcp_tbm_B[[which.min(btrcp_tbm_dic)]]
 
 # > FTR Tucker ----
 ftrt_tbm_files <- list.files(result_dir, full.names = T) |>
@@ -799,20 +990,47 @@ ftrt_tbm_aic <- sapply(ftrt_tbm_files, function(fn){
     return(aic_out)
   }
 })
+ftrt_tbm_bic <- sapply(ftrt_tbm_files, function(fn){
+  sample_size <- 817
+  res <- readRDS(fn)
+  if(class(res) == "try-error"){
+    return(Inf)
+  }else{
+    num_params <- length(res$gam) + length(unlist(res$betas)) + length(c(res$G))
+    bic_out <-  log(sample_size) * num_params - 2 * res$llik
+    return(bic_out)
+  }
+})
+cbind(ftrt_tbm_aic,ftrt_tbm_bic)
 which.min(ftrt_tbm_aic) # Rank 1,1 # Rank 4,4 when age and gender are included # Rank 1,1 after bugfix
+which.min(ftrt_tbm_bic) # Rank 1,1 when gender and age are included and after bugfix
 ftrt_tbm_best_res <- readRDS(ftrt_tbm_files[which.min(ftrt_tbm_aic)])
 ftrt_tbm_best_B <- ftrt_tbm_best_res$B
 
 # > FTR CP ----
 ftrcp_tbm_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "FTR_CP_rank", value = T)
+# This is the number of parameters used to estimate the tensor coefficient
+# sapply(ftrcp_tbm_files, function(x){
+#   res <- readRDS(x)
+#   return(length(unlist(res$betas)))
+# })
 ftrcp_tbm_aic <- sapply(ftrcp_tbm_files, function(fn){
   res <- readRDS(fn)
   num_params <- length(res$gam) + length(unlist(res$betas))
   aic_out <- 2 * num_params - 2 * res$llik
   return(aic_out)
 })
+ftrcp_tbm_bic <- sapply(ftrcp_tbm_files, function(fn){
+  sample_size <- 817
+  res <- readRDS(fn)
+  num_params <- length(res$gam) + length(unlist(res$betas)) +1
+  bic_out <-  log(sample_size) * num_params - 2 * res$llik
+  return(bic_out)
+})
+cbind(ftrcp_tbm_aic,ftrcp_tbm_bic)
 which.min(ftrcp_tbm_aic) # Rank 2 # Rank 1 when age and gender are included
+which.min(ftrcp_tbm_bic) # Rank 1 when age and gender are included
 ftrcp_tbm_best_res <- readRDS(ftrcp_tbm_files[which.min(ftrcp_tbm_aic)])
 ftrcp_tbm_best_B <- ftrcp_tbm_best_res$B
 
@@ -895,7 +1113,7 @@ insideTemplate <-
 
 tbm_best_B <-
   reshape2::melt(btrt_tbm_best_B) |>
-  mutate(Model = "BTR Tucker 1,2") |>
+  mutate(Model = "BTR Tucker 3,3") |>
   # full_join(
   #   reshape2::melt(btrcp_tbm_best_B) |>
   #     mutate(Model = "BTR CP 1")
@@ -914,8 +1132,8 @@ tbm_best_B <-
   )
 
 tbm_best_B |>
-  group_by(Model) |>
-  summarize(min_v = min(value),
+  dplyr::group_by(Model) |>
+  dplyr::summarize(min_v = min(value),
             max_v = max(value),
             num_large = sum(abs(value) > 1e-5))
 
@@ -924,7 +1142,7 @@ tbm_best_plt <-
          value = ifelse(abs(value) > 1e-5,sign(value) * 1e-5,value),
          Model = factor(Model, levels = c("GLM","FTR CP 1","FTR Tucker 1,1",
                                           # "BTR CP 1",
-                                          "BTR Tucker 1,2"))
+                                          "BTR Tucker 3,3"))
          ) |>  # thresholding
   # filter(Model == "FTR Tucker 1,1") |>
   left_join(insideAAL) |>
@@ -960,8 +1178,28 @@ ggsave(filename = "~/github/BTRTucker/plots/5_tbm_best_B_slice080_template_maske
 # BTR Tucker
 btrt_tbm_best_gam <- btrt_tbm_best_res$gam
 
+# This is to create the trace plots
+reshape2::melt(btrt_tbm_best_gam) |>
+  ggplot() +
+  geom_line(aes(x = Var1, y = value)) +
+  facet_wrap(~Var2, scales = "free")
+
+# This checks the posterior densities
+reshape2::melt(btrt_tbm_best_gam) |>
+  ggplot() +
+  stat_density(aes(x = value)) +
+  facet_wrap(~Var2, scales = "free")
+
+reshape2::melt(btrt_tbm_best_gam) |>
+  group_by(Var2) |>
+  dplyr::summarize(mean = mean(value),
+            sd = sd(value),
+            se = sd(value) / sqrt(1000),
+            low = mean - 3 *se,
+            high = mean + 3*se)
+
 # BTR CP
-btrcp_tbm_best_gam <- btrcp_tbm_best_res$gam
+# btrcp_tbm_best_gam <- btrcp_tbm_best_res$gam
 
 # FTR Tucker
 ftrt_tbm_best_gam <- ftrt_tbm_best_res$gam
@@ -972,7 +1210,8 @@ ftrcp_tbm_best_gam <- ftrcp_tbm_best_res$gam
 # GLM / No image
 glm_tbm_gam <- glm_tbm_res$gam
 
-gam_names <- c("Age","Education","Gender","APOE4")
+# gam_names <- c("Age","Education","Sex","APOE4")
+gam_names <- c("Education","APOE4")
 
 ftr_tbm_best_gam_df <-
   reshape2::melt(t(unname(ftrt_tbm_best_gam))) |>
@@ -992,7 +1231,8 @@ gg_color_hue <- function(n) {
   hues = seq(15, 375, length = n + 1)
   hcl(h = hues, l = 65, c = 100)[1:n]
 }
-hue_pal <- gg_color_hue(4)
+# hue_pal <- gg_color_hue(4)
+hue_pal <- gg_color_hue(2)
 library(RColorBrewer)
 # my_pal <- brewer.pal(4,"Paired")
 my_pal <- c(brewer.pal(6,"Paired"),"grey50")
@@ -1000,7 +1240,7 @@ my_pal <- c(brewer.pal(6,"Paired"),"grey50")
 # Plot
 tbm_best_gam_plt <-
   reshape2::melt(btrt_tbm_best_gam) |>
-  mutate(Model = "BTR Tucker 1,2",
+  mutate(Model = "BTR Tucker 3,3",
          Var2 = gam_names[Var2]) |>
   filter(Var2 != "Intercept") |>
   # full_join(
@@ -1225,10 +1465,10 @@ aal_template <- ggplotGrob(aal_template)
 # this is to examine the predictive value of the models
 library(bayestensorreg)
 data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-result_dir <- "~/github/BTRTucker/results/ADNI"
+result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
 tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
 tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-tbm_data$eta <- tbm_data$eta[,-1]
+tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]
 vecX  <- apply(tbm_data$X,3,identity)
 
 btrt_fitted_values <- function(result,new_data){
@@ -1278,7 +1518,7 @@ cor(tbm_data$y,noimage_fit)
 cor(tbm_data$y,ftrcp_fit)
 cor(tbm_data$y,ftrt_fit)
 cor(tbm_data$y,btrt_fit)
-cor(tbm_data$y,btrcp_fit)
+# cor(tbm_data$y,btrcp_fit)
 
 rmspe <- function(fits, vals) {
   out <- sqrt(mean((fits - vals)^2))
@@ -1289,7 +1529,7 @@ rmspe(tbm_data$y,noimage_fit)
 rmspe(tbm_data$y,ftrcp_fit)
 rmspe(tbm_data$y,ftrt_fit)
 rmspe(tbm_data$y,btrt_fit)
-rmspe(tbm_data$y,btrcp_fit)
+# rmspe(tbm_data$y,btrcp_fit)
 # Make this into a table
 tbm_fit_df <-
   data.frame(
@@ -1298,7 +1538,7 @@ tbm_fit_df <-
       "FTR CP Rank 1",
       "FTR Tucker Rank 1,1",
       # "BTR CP Rank 1",
-      "BTR Tucker Rank 1,2"
+      "BTR Tucker Rank 3,3"
     ),
     Cor = c(
       cor(tbm_data$y,noimage_fit),
@@ -1320,3 +1560,22 @@ tbm_fit_df
 library(knitr)
 tbm_fit_table <- kable(tbm_fit_df,digits = 3, "latex")
 print(tbm_fit_table)
+
+# Compare banded signal ----
+result_dir <- "~/github/BTRTucker/results/data_simulations"
+banded_btrt_files <- list.files(result_dir, full.names = T) |>
+  grep(pattern = "banded_signal", value = T)
+library(bayestensorreg)
+banded_btrt_B <- sapply(banded_btrt_files, function(fn){
+  res <- readRDS(fn)
+  out_B <- BTRT_final_B(res)
+  return(out_B)
+}, simplify = F)
+
+reshape2::melt(banded_btrt_B) |>
+  mutate(R1 = substring(L1, 83, 83),
+         R2 = substring(L1, 84, 84)) |>
+  select(Var1,Var2,value,R1,R2) |>
+  ggplot() +
+  geom_raster(aes(x = Var1, y = Var2, fill = value)) +
+  facet_grid(R1~R2)

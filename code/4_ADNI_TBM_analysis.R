@@ -37,6 +37,45 @@
 # # subject_imgs <- readRDS(file.path(data_dir, "4_ADNI_TBM_subject_imgs_2mm.rds"))
 #
 # library(ADNIMERGE)
+# # ADNI EDA
+# adni_df <- subset(adnimerge, PTID %in% subjects & !is.na(MMSE))
+# adni_df <- adni_df[,!grepl(pattern = ".bl",names(adni_df))]
+# adni_df <- subset(adni_df, VISCODE == "bl")
+# missing_cols <- apply(adni_df, 2, function(x) sum(is.na(x)))
+# adni_df <- adni_df[,missing_cols == 0]
+# adni_df <-
+#   subset(
+#     adni_df,
+#     select = -c(
+#       RID, # Identifier
+#       COLPROT, # Collection procedure
+#       ORIGPROT, # Collection procedure
+#       PTID, # Identifier
+#       SITE, # Identifier
+#       VISCODE, # Visit code
+#       EXAMDATE, # Date
+#       FLDSTRENG, # Collection procedure
+#       FSVERSION, # Collection procedure
+#       IMAGEUID, # Identifier
+#       ICV, # Collection procedure
+#       DX, # Diagnosis, not a predictor
+#       mPACCdigit, # Another clinical score
+#       mPACCtrailsB, # Another clinical score
+#       Month, # Date
+#       M, # Date
+#       CDRSB, # Another clinical score
+#       ADASQ4,# Another clinical score
+#       LDELTOTAL,# Another clinical score
+#       PTRACCAT, # racial category
+#       PTETHCAT # ethnic category
+#     )
+#   )
+# adni_lm <- lm(MMSE ~ ., data = adni_df)
+# aic_select <- step(adni_lm)
+# final_adni_df <- subset(adni_df, select = c(MMSE, AGE, PTEDUCAT, APOE4))
+# final_adni_lm <- lm(MMSE ~ . - AGE, final_adni_df)
+# summary(final_adni_lm) # Based on this, only include PTEDUCAT and APOE4
+#
 # adni_df <- subset(adnimerge, PTID %in% subjects & !is.na(MMSE), select = c(PTID,VISCODE,AGE,PTEDUCAT, PTGENDER,APOE4,MMSE))
 # adni_bl <- subset(adni_df, VISCODE == "bl")
 # adni_bl <- adni_bl[order(adni_bl$PTID),] # This is important. Make sure the order is the same
@@ -72,41 +111,42 @@
 #   return(NULL)
 # })
 
-# >  Bayes CP ----
-library(parallel)
-cl <- makeCluster(4) # Number of parallel cores
-parSapply(cl, 1:4, function(r) {
-  library(bayestensorreg)
-  data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-  result_dir <- "~/github/BTRTucker/results/ADNI"
-  tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
-  tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-  tbm_data$eta <- tbm_data$eta[,-1]
-  set.seed(47408)
-  btr_cp <-
-    try(BTR_CP(
-      input = tbm_data,
-      max_rank = r,
-      n_iter = 100,
-      n_burn = 0,
-      hyperparameters = NULL,
-      save_dir = "~/Desktop"
-    ))
-  saveRDS(btr_cp, file.path(result_dir,paste0("4_ADNI_TBM_BTR_CP_rank",paste(r,collapse = ""),".rds")))
-  return(NULL)
-})
-
-# # > FTR Tucker ----
-# ranks <- as.matrix(expand.grid(1:4,1:4))
+# # >  Bayes CP ----
 # library(parallel)
-# cl <- makeCluster(8) # Number of parallel cores
-# parApply(cl, ranks, 1, function(r) {
+# cl <- makeCluster(4) # Number of parallel cores
+# parSapply(cl, 1:4, function(r) {
 #   library(bayestensorreg)
 #   data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
 #   result_dir <- "~/github/BTRTucker/results/ADNI"
 #   tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
 #   tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
 #   tbm_data$eta <- tbm_data$eta[,-1]
+#   set.seed(47408)
+#   btr_cp <-
+#     try(BTR_CP(
+#       input = tbm_data,
+#       max_rank = r,
+#       n_iter = 100,
+#       n_burn = 0,
+#       hyperparameters = NULL,
+#       save_dir = "~/Desktop"
+#     ))
+#   saveRDS(btr_cp, file.path(result_dir,paste0("4_ADNI_TBM_BTR_CP_rank",paste(r,collapse = ""),".rds")))
+#   return(NULL)
+# })
+
+# # > FTR Tucker ----
+# ranks <- as.matrix(expand.grid(1:4,1:4))
+# ranks <- matrix(1:4,nrow = 4, ncol = 2)
+# library(parallel)
+# cl <- makeCluster(4) # Number of parallel cores
+# parApply(cl, ranks, 1, function(r) {
+#   library(bayestensorreg)
+#   data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+#   result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
+#   tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
+#   tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
+#   tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]
 #   set.seed(47408)
 #   ftr_tucker <-
 #     try(FTRTucker(
@@ -119,16 +159,16 @@ parSapply(cl, 1:4, function(r) {
 #   return(NULL)
 # })
 # # > FTR CP ----
-# # library(parallel)
-# # cl <- makeCluster(4) # Number of parallel cores
-# # parSapply(cl, 1:4, function(r) {
+# library(parallel)
+# cl <- makeCluster(4) # Number of parallel cores
+# parSapply(cl, 1:4, function(r) {
 # library(bayestensorreg)
 # data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-# result_dir <- "~/github/BTRTucker/results/ADNI"
+# result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
 # tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
 # tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-# tbm_data$eta <- tbm_data$eta[,-1]
-# for(r in 1:4) {
+# tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]
+# # for(r in 1:4) {
 #   set.seed(47408)
 #   ftr_cp <-
 #     FTR_CP(
@@ -137,43 +177,45 @@ parSapply(cl, 1:4, function(r) {
 #       epsilon = 1e-1
 #     )
 #   saveRDS(ftr_cp, file.path(result_dir,paste0("4_ADNI_TBM_FTR_CP_rank",paste(r,collapse = ""),".rds")))
-# }
+# # }
+# return(NULL)
+# })
 #
 #   # return(NULL)
 # # })
 # # stopCluster(cl)
-# # > GLM ----
-# library(bayestensorreg)
-# data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-# result_dir <- "~/github/BTRTucker/results/ADNI"
-# tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
-# tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-# tbm_data$eta <- tbm_data$eta[,-1]
-# glm_tbm_gam <- lm(tbm_data$y~-1 + tbm_data$eta)$coefficients
-# glm_tbm_ytil <- lm(tbm_data$y~-1 + tbm_data$eta)$residuals
-# library(parallel)
-# cl <- makeCluster(8)
-# glm_tbm_B <- parApply(cl,tbm_data$X, 1:2, function(x,ytil){
-#   return(lm(ytil~ -1 + x)$coefficients)
-# }, ytil = glm_tbm_ytil)
-# glm_tbm_pval <- parApply(cl,tbm_data$X, 1:2, function(x,ytil){
-#   return(summary(lm(ytil~ -1 + x))$coefficients[4])
-# }, ytil = glm_tbm_ytil)
-# stopCluster(cl)
-# glm_tbm_pval2 <- matrix(p.adjust(c(glm_tbm_pval),"BH"), nrow = nrow(glm_tbm_pval),ncol = ncol(glm_tbm_pval))
-# glm_tbm_signif <- array(as.numeric(glm_tbm_pval2 < 0.05), dim = dim(glm_tbm_pval2))
-# final_glm_tbm_B <- glm_tbm_B * glm_tbm_signif
-# glm_tbm_fitted <- c(tbm_data$eta %*% glm_tbm_gam) + c(crossprod(c(final_glm_tbm_B),t(kFold(tbm_data$X,3))))
-# glm_tbm_resid <- tbm_data$y - glm_tbm_fitted
-# glm_tbm_llik <- sum(dnorm(glm_tbm_resid,sd = sd(glm_tbm_resid), log = T))
-# glm_tbm <- list(
-#   B = glm_tbm_B,
-#   B_signif = glm_tbm_signif,
-#   gam = glm_tbm_gam,
-#   fitted = glm_tbm_fitted,
-#   llik = glm_tbm_llik
-# )
-# saveRDS(glm_tbm, file = "~/github/BTRTucker/results/ADNI/4_ADNI_TBM_GLM.rds")
+# > GLM ----
+library(bayestensorreg)
+data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
+tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
+tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
+tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]
+glm_tbm_gam <- lm(tbm_data$y~-1 + tbm_data$eta)$coefficients
+glm_tbm_ytil <- lm(tbm_data$y~-1 + tbm_data$eta)$residuals
+library(parallel)
+cl <- makeCluster(8)
+glm_tbm_B <- parApply(cl,tbm_data$X, 1:2, function(x,ytil){
+  return(lm(ytil~ -1 + x)$coefficients)
+}, ytil = glm_tbm_ytil)
+glm_tbm_pval <- parApply(cl,tbm_data$X, 1:2, function(x,ytil){
+  return(summary(lm(ytil~ -1 + x))$coefficients[4])
+}, ytil = glm_tbm_ytil)
+stopCluster(cl)
+glm_tbm_pval2 <- matrix(p.adjust(c(glm_tbm_pval),"BH"), nrow = nrow(glm_tbm_pval),ncol = ncol(glm_tbm_pval))
+glm_tbm_signif <- array(as.numeric(glm_tbm_pval2 < 0.05), dim = dim(glm_tbm_pval2))
+final_glm_tbm_B <- glm_tbm_B * glm_tbm_signif
+glm_tbm_fitted <- c(tbm_data$eta %*% glm_tbm_gam) + c(crossprod(c(final_glm_tbm_B),t(kFold(tbm_data$X,3))))
+glm_tbm_resid <- tbm_data$y - glm_tbm_fitted
+glm_tbm_llik <- sum(dnorm(glm_tbm_resid,sd = sd(glm_tbm_resid), log = T))
+glm_tbm <- list(
+  B = glm_tbm_B,
+  B_signif = glm_tbm_signif,
+  gam = glm_tbm_gam,
+  fitted = glm_tbm_fitted,
+  llik = glm_tbm_llik
+)
+saveRDS(glm_tbm, file = file.path(result_dir,"4_ADNI_TBM_GLM.rds"))
 # # RESULTS ----
 # # > Bayes Tucker ----
 # result_dir <- "~/github/BTRTucker/results/ADNI"
