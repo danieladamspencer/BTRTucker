@@ -86,30 +86,37 @@
 # saveRDS(tbm_data, file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
 
 # ANALYSIS ----
-# # > Bayes Tucker ----
-# ranks <- as.matrix(expand.grid(1:4,1:4))
-# library(parallel)
-# cl <- makeCluster(8) # Number of parallel cores
-# parApply(cl, ranks, 1, function(r) {
-#   library(bayestensorreg)
-#   data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-#   result_dir <- "~/github/BTRTucker/results/ADNI"
-#   tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice110_TRdata.rds"))
-#   tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-#   tbm_data$eta <- tbm_data$eta[,-1]
-#   set.seed(47408)
-#   btr_tucker <-
-#     BTRTucker(
-#       input = tbm_data,
-#       ranks = r,
-#       n_iter = 1500,
-#       n_burn = 500,
-#       hyperparameters = NULL,
-#       save_dir = NULL
-#     )
-#   saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_BTRTucker_rank",paste(r,collapse = ""),".rds")))
-#   return(NULL)
-# })
+# > Bayes Tucker ----
+ranks <- as.matrix(expand.grid(1:4,1:4))
+ranks <- matrix(rep(1:4,2), ncol = 2)
+library(parallel)
+cl <- makeCluster(4) # Number of parallel cores
+parApply(cl, ranks, 1, function(r) {
+  library(bayestensorreg)
+  data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+  data_dir <- "/media/dan/B/github/BTRTucker/data"
+  result_dir <- "~/github/BTRTucker/results/ADNI"
+  result_dir <- "/media/dan/B/github/BTRTucker/results"
+  tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
+  tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
+  tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]
+  tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 0))
+  tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 1))
+  tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 2))
+  tbm_data$eta <- tbm_data$eta[, -2]
+  set.seed(47408)
+  btr_tucker <-
+    BTRTucker(
+      input = tbm_data,
+      ranks = r,
+      n_iter = 1500,
+      n_burn = 500,
+      hyperparameters = NULL,
+      save_dir = NULL
+    )
+  saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_BTRTucker_rank",paste(r,collapse = ""),".rds")))
+  return(NULL)
+})
 
 # # >  Bayes CP ----
 # library(parallel)
