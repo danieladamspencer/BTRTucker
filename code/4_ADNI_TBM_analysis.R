@@ -87,35 +87,51 @@
 
 # ANALYSIS ----
 # > Bayes Tucker ----
-ranks <- as.matrix(expand.grid(1:4,1:4))
-ranks <- matrix(rep(1:4,2), ncol = 2)
+# ranks <- as.matrix(expand.grid(1:4,1:4))
+# ranks <- matrix(rep(1:4,2), ncol = 2)
+ranks <-
+  matrix(
+    c(4,4,
+      3,3,
+      2,2,
+      1,1),
+    nrow = 4, ncol = 2, byrow = TRUE
+  )
 library(parallel)
 cl <- makeCluster(4) # Number of parallel cores
+# r <- c(5,5)
 parApply(cl, ranks, 1, function(r) {
   library(bayestensorreg)
+  # library(oro.nifti)
   data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-  data_dir <- "/media/dan/B/github/BTRTucker/data"
-  result_dir <- "~/github/BTRTucker/results/ADNI"
-  result_dir <- "/media/dan/B/github/BTRTucker/results"
+  # data_dir <- "/media/dan/B/github/BTRTucker/data"
+  result_dir <- "~/github/BTRTucker/results/ADNI_R3"
+  # result_dir <- "/media/dan/B/github/BTRTucker/results"
+  # template <- readNIfTI(file.path(data_dir, "ADNI_MDT", "ADNI_ICBM9P_mni_4step_MDT.nii.gz"))
+  # template <- fslbet(template)
+  # in_brain <- ifelse(template@.Data[,,80] > 0, 1, 0)
   tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
   tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
   tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]
-  tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 0))
+  # tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 0))
   tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 1))
   tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 2))
   tbm_data$eta <- tbm_data$eta[, -2]
+  in_brain <- readRDS(file.path(data_dir,"4_in_brain.rds"))
+  mask <- in_brain %o% rep(1,length(tbm_data$y))
+  tbm_data$X <- tbm_data$X * mask
   set.seed(47408)
   btr_tucker <-
     BTRTucker(
       input = tbm_data,
       ranks = r,
-      n_iter = 1500,
-      n_burn = 500,
+      n_iter = 11000,
+      n_burn = 1000,
       hyperparameters = NULL,
       save_dir = NULL
     )
   saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_BTRTucker_rank",paste(r,collapse = ""),".rds")))
-  return(NULL)
+  # return(NULL)
 })
 
 # # >  Bayes CP ----
@@ -127,13 +143,17 @@ parApply(cl, ranks, 1, function(r) {
 #   result_dir <- "~/github/BTRTucker/results/ADNI"
 #   tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
 #   tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-#   tbm_data$eta <- tbm_data$eta[,-1]
+#   tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]
+#     tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 0))
+#     tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 1))
+#     tbm_data$eta <- cbind(tbm_data$eta, as.numeric(tbm_data$eta[,2] == 2))
+#     tbm_data$eta <- tbm_data$eta[, -2]
 #   set.seed(47408)
 #   btr_cp <-
 #     try(BTR_CP(
 #       input = tbm_data,
 #       max_rank = r,
-#       n_iter = 100,
+#       n_iter = 40,
 #       n_burn = 0,
 #       hyperparameters = NULL,
 #       save_dir = "~/Desktop"
@@ -191,38 +211,38 @@ parApply(cl, ranks, 1, function(r) {
 #   # return(NULL)
 # # })
 # # stopCluster(cl)
-# > GLM ----
-library(bayestensorreg)
-data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
-tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
-tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]
-glm_tbm_gam <- lm(tbm_data$y~-1 + tbm_data$eta)$coefficients
-glm_tbm_ytil <- lm(tbm_data$y~-1 + tbm_data$eta)$residuals
-library(parallel)
-cl <- makeCluster(8)
-glm_tbm_B <- parApply(cl,tbm_data$X, 1:2, function(x,ytil){
-  return(lm(ytil~ -1 + x)$coefficients)
-}, ytil = glm_tbm_ytil)
-glm_tbm_pval <- parApply(cl,tbm_data$X, 1:2, function(x,ytil){
-  return(summary(lm(ytil~ -1 + x))$coefficients[4])
-}, ytil = glm_tbm_ytil)
-stopCluster(cl)
-glm_tbm_pval2 <- matrix(p.adjust(c(glm_tbm_pval),"BH"), nrow = nrow(glm_tbm_pval),ncol = ncol(glm_tbm_pval))
-glm_tbm_signif <- array(as.numeric(glm_tbm_pval2 < 0.05), dim = dim(glm_tbm_pval2))
-final_glm_tbm_B <- glm_tbm_B * glm_tbm_signif
-glm_tbm_fitted <- c(tbm_data$eta %*% glm_tbm_gam) + c(crossprod(c(final_glm_tbm_B),t(kFold(tbm_data$X,3))))
-glm_tbm_resid <- tbm_data$y - glm_tbm_fitted
-glm_tbm_llik <- sum(dnorm(glm_tbm_resid,sd = sd(glm_tbm_resid), log = T))
-glm_tbm <- list(
-  B = glm_tbm_B,
-  B_signif = glm_tbm_signif,
-  gam = glm_tbm_gam,
-  fitted = glm_tbm_fitted,
-  llik = glm_tbm_llik
-)
-saveRDS(glm_tbm, file = file.path(result_dir,"4_ADNI_TBM_GLM.rds"))
+# # > GLM ----
+# library(bayestensorreg)
+# data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+# result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
+# tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
+# tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
+# tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]
+# glm_tbm_gam <- lm(tbm_data$y~-1 + tbm_data$eta)$coefficients
+# glm_tbm_ytil <- lm(tbm_data$y~-1 + tbm_data$eta)$residuals
+# library(parallel)
+# cl <- makeCluster(8)
+# glm_tbm_B <- parApply(cl,tbm_data$X, 1:2, function(x,ytil){
+#   return(lm(ytil~ -1 + x)$coefficients)
+# }, ytil = glm_tbm_ytil)
+# glm_tbm_pval <- parApply(cl,tbm_data$X, 1:2, function(x,ytil){
+#   return(summary(lm(ytil~ -1 + x))$coefficients[4])
+# }, ytil = glm_tbm_ytil)
+# stopCluster(cl)
+# glm_tbm_pval2 <- matrix(p.adjust(c(glm_tbm_pval),"BH"), nrow = nrow(glm_tbm_pval),ncol = ncol(glm_tbm_pval))
+# glm_tbm_signif <- array(as.numeric(glm_tbm_pval2 < 0.05), dim = dim(glm_tbm_pval2))
+# final_glm_tbm_B <- glm_tbm_B * glm_tbm_signif
+# glm_tbm_fitted <- c(tbm_data$eta %*% glm_tbm_gam) + c(crossprod(c(final_glm_tbm_B),t(kFold(tbm_data$X,3))))
+# glm_tbm_resid <- tbm_data$y - glm_tbm_fitted
+# glm_tbm_llik <- sum(dnorm(glm_tbm_resid,sd = sd(glm_tbm_resid), log = T))
+# glm_tbm <- list(
+#   B = glm_tbm_B,
+#   B_signif = glm_tbm_signif,
+#   gam = glm_tbm_gam,
+#   fitted = glm_tbm_fitted,
+#   llik = glm_tbm_llik
+# )
+# saveRDS(glm_tbm, file = file.path(result_dir,"4_ADNI_TBM_GLM.rds"))
 # # RESULTS ----
 # # > Bayes Tucker ----
 # result_dir <- "~/github/BTRTucker/results/ADNI"
