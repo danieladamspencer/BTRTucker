@@ -870,7 +870,27 @@ ggsave(filename = "~/github/BTRTucker/plots/5_ftrcp_slice080_tbm_B.png", plot = 
 library(bayestensorreg)
 library(tidyverse)
 library(ggrepel)
-result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
+library(oro.nifti)
+result_dir <- "~/github/BTRTucker/results/BTRTucker_11k/"
+data_dir <- "~/github/BTRTucker/data/"
+aal_mdt <- readNIfTI(file.path(data_dir, "aalMDT.nii.gz"))
+aal_template <- aal_mdt@.Data[,,80] |>
+  reshape2::melt() |>
+  mutate(value = ifelse(value ==0, NA, value),
+         value = ifelse((value == 4201 | value == 4202),1,0) # Highlights the amygdala
+  ) |>
+  ggplot() +
+  geom_raster(aes(x = Var1, y = Var2, fill = value)) +
+  scale_fill_distiller(palette = "Greys") +
+  guides(fill = "none") +
+  theme_void() +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0))
+aal_template <- ggplotGrob(aal_template)
+
+insideAAL <- aal_mdt@.Data[,,80] |>
+  reshape2::melt(value.name = "mask") |>
+  mutate(mask = ifelse(mask == 0, 0, 1))
 # > BTR Tucker ----
 # btrt_result_dir <- "~/github/BTRTucker/results/ADNI/BTRTucker_11k_EDA"
 btrt_tbm_files <- list.files(result_dir, full.names = T) |>
@@ -886,12 +906,12 @@ btrt_tbm_lliks <- sapply(btrt_tbm_files, function(fn){
   res <- readRDS(fn)
   return(as.matrix(res$llik))
 }, simplify = F)
+library(stringr)
 btrt_tbm_llik_df <-
   reshape2::melt(btrt_tbm_lliks) |>
-  mutate(#R1 = substring(L1,71,71),
-         #R2 = substring(L1,72,72),
-         R1 = substring(L1, 89,89),
-         R2 = substring(L1,90,90),
+  mutate(rank_names = substring(str_extract(L1, "rank(\\d+)"), first = 5),
+         R1 = substring(rank_names, 1, 1),
+         R2 = substring(rank_names, 2, 2),
          Rank = paste(R1,",",R2)) |>
   dplyr::select(Var1,R1,R2,Rank,value)
 btrt_tbm_llik_ends <- filter(btrt_tbm_llik_df, Var1 == max(Var1))
@@ -1435,19 +1455,21 @@ aal_mdt <- fslr::flirt(
 library(extrantsr)
 library(fslr)
 library(aal) # This is for the aal atlas
+data_dir <- "~/github/BTRTucker/data/"
 # Step 2: Register MNI to MDT
 MNI2MDT <- extrantsr::registration(filename = file.path(fsldir(),"data","standard","MNI152_T1_1mm.nii.gz"),
-                                   template.file = file.path(data_dir, "ADNI_MDT", "ADNI_ICBM9P_mni_4step_MDT.nii.gz"),
+                                   template.file = file.path(data_dir, "ADNI_ICBM9P_mni_4step_MDT.nii.gz"),
                                    typeofTransform = "SyN",
                                    other_interpolator = "nearestNeighbor")
 # Step 3: Apply warp to Yeo7 label map using nearest neighbor interpolation
-aalToMDT <- ants_apply_transforms(fixed = file.path(data_dir, "ADNI_MDT", "ADNI_ICBM9P_mni_4step_MDT.nii.gz"),moving = aal::aal_fname(),transformlist = MNI2MDT$fwdtransforms, interpolator = "nearestNeighbor")
+aalToMDT <- ants_apply_transforms(fixed = file.path(data_dir, "ADNI_ICBM9P_mni_4step_MDT.nii.gz"),moving = aal::aal_fname(),transformlist = MNI2MDT$fwdtransforms, interpolator = "nearestNeighbor")
 # Step 4: Visualize Yeo7 atlas in MDT space
 library(fslr)
 orthographic(aalToMDT)
-writeNIfTI(aalToMDT,file.path(data_dir,"aalMDT.nii.gz"))
+writeNIfTI(aalToMDT,file.path(data_dir,"aalMDT"))
 
 aal_mdt <- readNIfTI(file.path(data_dir, "aalMDT.nii.gz"))
+library(tidyverse)
 aal_template <- aal_mdt@.Data[,,80] |>
   reshape2::melt() |>
   mutate(value = ifelse(value ==0, NA, value),
@@ -1579,3 +1601,5 @@ reshape2::melt(banded_btrt_B) |>
   ggplot() +
   geom_raster(aes(x = Var1, y = Var2, fill = value)) +
   facet_grid(R1~R2)
+
+# Compare masked vs. unmasked data ----
