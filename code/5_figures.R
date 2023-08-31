@@ -605,7 +605,8 @@ ggsave(filename = file.path(plot_dir,"5_sim_llik.png"), plot = llik_plt,
 # Plot the TBM B ----
 result_dir <- "~/github/BTRTucker/results/ADNI/"
 # > BTR Tucker ----
-btrt_result_dir <- "~/github/BTRTucker/results/ADNI/BTRTucker_11k"
+# btrt_result_dir <- "~/github/BTRTucker/results/ADNI/BTRTucker_11k"
+btrt_result_dir <- "/media/dan/B/github/BTRTucker/results/ADNI/BTRTucker_11k"
 btrt_tbm_files <- list.files(btrt_result_dir, full.names = T) |>
   grep(pattern = "BTRTucker_rank", value = T)
 
@@ -620,11 +621,12 @@ btrt_tbm_files <- list.files(btrt_result_dir, full.names = T) |>
 #   saveRDS(btrt_tbm_B, file = file.path(btrt_result_dir,"5_btrt_slice080_tbm_B.rds"))
 # }, import = c(btrt_tbm_files))
 btrt_tbm_B <- readRDS(file.path(btrt_result_dir,"5_btrt_slice080_tbm_B.rds"))
-names(btrt_tbm_B) <- btrt_tbm_files
+names(btrt_tbm_B) <- head(btrt_tbm_files, length(btrt_tbm_B))
 
 library(tidyverse)
 library(oro.nifti)
-mdt_template <- readNIfTI("~/github/BTRTucker/data/ADNI/ADNI 11/ADNI_MDT/ADNI_ICBM9P_mni_4step_MDT.nii.gz")
+# mdt_template <- readNIfTI("~/github/BTRTucker/data/ADNI/ADNI 11/ADNI_MDT/ADNI_ICBM9P_mni_4step_MDT.nii.gz")
+mdt_template <- readNIfTI("/media/dan/B/github/BTRTucker/data/ADNI_ICBM9P_mni_4step_MDT.nii.gz")
 library(fslr)
 mdt_template <- fslbet(mdt_template)
 template_grob <-
@@ -639,12 +641,13 @@ template_grob <-
   scale_x_continuous(expand = c(0,0)) +
   scale_y_continuous(expand = c(0,0))
 template_grob <- ggplotGrob(template_grob)
+rm_string <- paste0(btrt_result_dir, "/4_ADNI_TBM_BTRTucker_rank")
 btrt_tbm_df <-
   reshape2::melt(btrt_tbm_B) |>
   mutate(#R1 = substring(L1,71,71),
          #R2 = substring(L1,72,72),
-         R1 = substring(L1, 85,85),
-         R2 = substring(L1,86,86),
+         R1 = substring(gsub(rm_string,"",L1), 1,1),
+         R2 = substring(gsub(rm_string,"",L1), 2,2),
          value = value / (1e-5),
          value = ifelse(value > 1,1,value),
          value = value * (1e-5),
@@ -870,11 +873,10 @@ ggsave(filename = "~/github/BTRTucker/plots/5_ftrcp_slice080_tbm_B.png", plot = 
 library(bayestensorreg)
 library(tidyverse)
 library(ggrepel)
-result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
+result_dir <- "/media/dan/B/github/BTRTucker/results/ADNI/BTRTucker_11k/"
 # > BTR Tucker ----
 # btrt_result_dir <- "~/github/BTRTucker/results/ADNI/BTRTucker_11k_EDA"
-btrt_tbm_files <- list.files(result_dir, full.names = T) |>
-  grep(pattern = "BTRTucker_rank", value = T)
+btrt_tbm_files <- list.files(result_dir, pattern = "BTRTucker_rank", full.names = T)
 # rep_ranks <- sapply(2:3, function(x) paste(rep(x,2),collapse = ""))
 # final_btrt_tbm_files <- character()
 # for(rr in rep_ranks) {
@@ -925,6 +927,7 @@ which.min(btrt_tbm_dic) # Rank 3,2 # Rank 4,2 for slice 080 # Rank 1,2 for slice
 # Something to note here is that the DIC is a linear combination of mean and variance of the log-likelihood, so optimizing over both summary statistics is required.
 btrt_tbm_best_res <- readRDS(btrt_tbm_files[which.min(btrt_tbm_dic)])
 # btrt_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrt_slice080_tbm_B.rds")
+btrt_tbm_B <- readRDS("/media/dan/B/github/BTRTucker/results/ADNI/BTRTucker_11k/5_btrt_slice080_tbm_B.rds")
 # btrt_tbm_best_B <- btrt_tbm_B[[which.min(btrt_tbm_dic)]]
 btrt_tbm_best_B <- BTRT_final_B(btrt_tbm_best_res)
 
@@ -1056,7 +1059,8 @@ template_grob <-
   scale_y_continuous(expand = c(0,0))
 template_grob <- ggplotGrob(template_grob)
 
-data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+# data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+data_dir <- "/media/dan/B/github/BTRTucker/data"
 # yeo7_mdt <- readNIfTI(file.path(data_dir, "yeo7_MDT_extrantsr.nii.gz"))
 # yeo7_template <- yeo7_mdt@.Data[,,110] |>
 #   reshape2::melt() |>
@@ -1083,7 +1087,7 @@ data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
 #   scale_y_continuous(expand = c(0,0))
 # Yeo7_template <- ggplotGrob(Yeo7_template)
 
-aal_mdt <- readNIfTI(file.path(data_dir, "aalMDT.nii.gz"))
+aal_mdt <- readNIfTI(file.path(data_dir, "aal_MDT.nii.gz"))
 aal_template <- aal_mdt@.Data[,,80] |>
   reshape2::melt() |>
   mutate(value = ifelse(value ==0, NA, value),
@@ -1410,6 +1414,7 @@ ggsave(filename = "~/github/BTRTucker/plots/5_small3_tbm_trace.png",plot = small
 # Make AAL atlas and register to MDT ----
 aal_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11/aal_for_SPM12/atlas"
 data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+data_dir <- "/media/dan/B/github/BTRTucker/data/"
 library(fslr)
 library(oro.nifti)
 # View the Yeo 7 atlas in MNI space
@@ -1437,15 +1442,16 @@ library(fslr)
 library(aal) # This is for the aal atlas
 # Step 2: Register MNI to MDT
 MNI2MDT <- extrantsr::registration(filename = file.path(fsldir(),"data","standard","MNI152_T1_1mm.nii.gz"),
-                                   template.file = file.path(data_dir, "ADNI_MDT", "ADNI_ICBM9P_mni_4step_MDT.nii.gz"),
+                                   template.file = file.path(data_dir, "ADNI_ICBM9P_mni_4step_MDT.nii.gz"),
                                    typeofTransform = "SyN",
                                    other_interpolator = "nearestNeighbor")
 # Step 3: Apply warp to Yeo7 label map using nearest neighbor interpolation
-aalToMDT <- ants_apply_transforms(fixed = file.path(data_dir, "ADNI_MDT", "ADNI_ICBM9P_mni_4step_MDT.nii.gz"),moving = aal::aal_fname(),transformlist = MNI2MDT$fwdtransforms, interpolator = "nearestNeighbor")
+aalToMDT <- ants_apply_transforms(fixed = file.path(data_dir, "ADNI_ICBM9P_mni_4step_MDT.nii.gz"),moving = aal::aal_fname(),transformlist = MNI2MDT$fwdtransforms, interpolator = "nearestNeighbor")
 # Step 4: Visualize Yeo7 atlas in MDT space
 library(fslr)
+library(tidyverse)
 orthographic(aalToMDT)
-writeNIfTI(aalToMDT,file.path(data_dir,"aalMDT.nii.gz"))
+writeNIfTI(aalToMDT,file.path(data_dir,"aalMDT"))
 
 aal_mdt <- readNIfTI(file.path(data_dir, "aalMDT.nii.gz"))
 aal_template <- aal_mdt@.Data[,,80] |>
@@ -1465,7 +1471,9 @@ aal_template <- ggplotGrob(aal_template)
 # this is to examine the predictive value of the models
 library(bayestensorreg)
 data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+data_dir <- "/media/dan/B/github/BTRTucker/data/"
 result_dir <- "~/github/BTRTucker/results/ADNI/After_EDA"
+
 tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
 tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
 tbm_data$eta <- tbm_data$eta[,-c(1,2,4)]

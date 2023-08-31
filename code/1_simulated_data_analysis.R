@@ -229,3 +229,5 @@
 #   saveRDS(res, file.path(save_dir,paste0("1_banded_signal_btrt_rank",paste(as.numeric(rr),collapse = ""),".rds")))
 # })
 # stopCluster(cl)
+
+# Simulate data with very different ranks ----
