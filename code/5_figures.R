@@ -871,7 +871,7 @@ library(bayestensorreg)
 library(tidyverse)
 library(ggrepel)
 library(oro.nifti)
-result_dir <- "~/github/BTRTucker/results/BTRTucker_11k/"
+result_dir <- "~/github/BTRTucker/results/"
 data_dir <- "~/github/BTRTucker/data/"
 aal_mdt <- readNIfTI(file.path(data_dir, "aalMDT.nii.gz"))
 aal_template <- aal_mdt@.Data[,,80] |>
@@ -944,32 +944,40 @@ btrt_tbm_dic <- sapply(btrt_tbm_files, function(fn){
 which.min(btrt_tbm_dic) # Rank 3,2 # Rank 4,2 for slice 080 # Rank 1,2 for slice 080 with age and gender added in # Rank 4,4 after 11000 samples # Rank 2, 3 after rerunning # Now rank 2,2 following the rank selection algorithm # And finally rank 3,3 after proper EDA
 # Something to note here is that the DIC is a linear combination of mean and variance of the log-likelihood, so optimizing over both summary statistics is required.
 btrt_tbm_best_res <- readRDS(btrt_tbm_files[which.min(btrt_tbm_dic)])
-# btrt_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrt_slice080_tbm_B.rds")
+btrt_tbm_best_res <- readRDS(list.files(result_dir, pattern = "EduAPOE_*_BTRTucker_10k", full.names = TRUE))
+btrt_tbm_B <- readRDS("~/github/BTRTucker/results/BTRTucker_11k/5_btrt_slice080_tbm_B.rds")
 # btrt_tbm_best_B <- btrt_tbm_B[[which.min(btrt_tbm_dic)]]
 btrt_tbm_best_B <- BTRT_final_B(btrt_tbm_best_res)
+unmasked_result <- readRDS("~/github/BTRTucker/results/BTRTucker_11k/4_ADNI_TBM_BTRTucker_rank33.rds")
+unmasked_B <- BTRT_final_B(unmasked_result)
 
 btrt_tbm_all_B <- BTRT_all_B(btrt_tbm_best_res)
 btrt_tbm_vec_B <- apply(btrt_tbm_all_B,3,identity)
 btrt_tbm_all_eff_B <- coda::effectiveSize(t(btrt_tbm_vec_B))
 quantile(btrt_tbm_all_eff_B,probs = c(.01,.99))
 
-reshape2::melt(btrt_tbm_best_B) |>
+plt <- reshape2::melt(btrt_tbm_best_B) |>
+  mutate(Data = "Masked") |>
+  full_join(
+    reshape2::melt(unmasked_B) |>
+      mutate(Data = "Unmasked")
+  ) |>
   mutate(value = ifelse(abs(value) > 1e-5,sign(value) * 1e-5,value)) |>
   left_join(insideAAL) |>
   mutate(value = value * mask) |>
   ggplot() +
   annotation_custom(grob = aal_template) +
   geom_raster(aes(x = Var1, y = Var2, fill = value,
-                  alpha = abs(value) / 1e-5
+                  alpha = abs(value) / max(abs(value))
                   # alpha = abs(value) / 6e-2
   )) +
-  scale_fill_gradient2("",high = "blue",low = "red",
+  scale_fill_gradient2("",high = "cornflowerblue",low = "red",
                        mid = "black",
                        limits = c(-1e-5,1e-5),
                        na.value = "black"
   ) +
   guides(alpha = "none") +
-  # facet_grid(~ Model, scales = "free") +
+  facet_grid(~ Data, scales = "fixed") +
   scale_x_continuous(expand = c(0,0)) +
   scale_y_continuous(expand = c(0,0)) +
   theme_bw() +
@@ -979,6 +987,9 @@ reshape2::melt(btrt_tbm_best_B) |>
         panel.grid = element_blank(),
         text = element_text(size = 18),
         aspect.ratio = 1)
+plt
+ggsave("~/github/BTRTucker/plots/5_compare_(un)masked_btrt_rank33.png",
+       plot = plt, width = 6, height = 3)
 
 # > BTR CP ----
 # all BTR CP models fail due to infinite values in the posterior precision of beta
