@@ -231,53 +231,54 @@
 # stopCluster(cl)
 
 # Simulated data with different ranks ----
-# library(bayestensorreg)
-# subjects = 400
-# tensor_dims = c(50, 50, 50)
-# CNR = 1
-# num_active = 1
-# other_covar = c(1, 1)
-#
-# ranks <- c(1, 7, 1)
-# set.seed(95064)
-# betas <- mapply(function(r, p) {
-#   out <- sapply(seq(r), function(rr){
-#     start_point <- round(runif(1, 0.1, 0.9) * p)
-#     lgth <- round(runif(1, 0.15, 0.2) * p)
-#     end_point <- start_point + lgth
-#     if(end_point > p) end_point <- p
-#     out <- rep(0, p)
-#     out[start_point:end_point] <- 1
-#     return(out)
-#   })
-# }, r = ranks, p = tensor_dims)
-#
-# G <- array(runif(prod(ranks), 0.5, 1), dim = ranks)
-#
-# B <- composeTuckerCore(betas, G)
-#
+library(bayestensorreg)
+subjects = 400
+tensor_dims = c(50, 50, 50)
+CNR = 1
+num_active = 1
+other_covar = c(1, 1)
+
+ranks <- c(2, 5, 2)
+set.seed(95064)
+betas <- mapply(function(r, p) {
+  out <- sapply(seq(r), function(rr){
+    start_point <- round(runif(1, 0.1, 0.9) * p)
+    lgth <- round(runif(1, 0.15, 0.2) * p)
+    end_point <- start_point + lgth
+    if(end_point > p) end_point <- p
+    out <- rep(0, p)
+    out[start_point:end_point] <- 1
+    return(out)
+  })
+}, r = ranks, p = tensor_dims)
+
+G <- array(runif(prod(ranks), 0.5, 1), dim = ranks)
+
+B <- composeTuckerCore(betas, G)
+
+# Exploring the highest-value margins
 # (big.i <- which.max(apply(B, 1, function(x) sum(x > 0))))
 # (big.j <- which.max(apply(B, 2, function(x) sum(x > 0))))
 # (big.k <- which.max(apply(B, 3, function(x) sum(x > 0))))
 # image(B[big.i,,])
 # image(B[,big.j,])
 # image(B[,,big.k])
-#
-# eta <-
-#   matrix(rnorm(subjects * length(other_covar)), subjects, length(other_covar))
-# gam <- other_covar
-# X <-
-#   array(rnorm(prod(tensor_dims) * subjects), dim = c(tensor_dims, subjects))
-# y <-
-#   apply(X, length(dim(X)), function(xx)
-#     sum(xx * B * CNR)) + c(eta %*% gam) + rnorm(subjects)
-# diff_ranks <- list(
-#   y = y,
-#   X = X,
-#   true_B = B,
-#   eta = eta,
-#   gam = gam
-# )
+
+eta <-
+  matrix(rnorm(subjects * length(other_covar)), subjects, length(other_covar))
+gam <- other_covar
+X <-
+  array(rnorm(prod(tensor_dims) * subjects), dim = c(tensor_dims, subjects))
+y <-
+  apply(X, length(dim(X)), function(xx)
+    sum(xx * B * CNR)) + c(eta %*% gam) + rnorm(subjects)
+diff_ranks <- list(
+  y = y,
+  X = X,
+  true_B = B,
+  eta = eta,
+  gam = gam
+)
 
 # auto_rank_btrt <- function(tr_data, n.iter = 1100, n.burn = 100) {
 #   # Debugging
@@ -332,27 +333,26 @@
 #
 # }
 
-# btrt_ranks <- expand.grid(R1 = 1:2, R2 = 1:2)
-# library(parallel)
-# cl <- makeCluster(4)
-# clusterExport(cl,"diff_ranks")
-# parApply(cl,sapply(1:7,rep,3),2,function(rr) {
-#   library(bayestensorreg)
-#   save_dir <- "~/github/BTRTucker/results/simulated_diff_rank/"
-#   res <- BTRTucker(input = diff_ranks, ranks = as.numeric(rr),n_iter = 1100, n_burn = 100,hyperparameters = NULL,save_dir = NULL)
-#   saveRDS(res, file.path(save_dir,paste0("1_diff_rank_btrt_rank",paste(as.numeric(rr),collapse = ""),".rds")))
-# })
-# stopCluster(cl)
-#
-# save_dir <- "~/github/BTRTucker/results/simulated_diff_rank/"
-# res_files <- list.files(save_dir, full.names = TRUE)
-# library(bayestensorreg)
-# all_dic <- sapply(res_files, function(x) {
-#   res <- readRDS(x)
-#   return(DIC(res$llik, burn_in = 100))
-# })
-# which.min(all_dic)
-# # /home/dan/github/BTRTucker/results/simulated_diff_rank//1_diff_rank_btrt_rank555.rds
+library(parallel)
+cl <- makeCluster(3)
+clusterExport(cl,"diff_ranks")
+parApply(cl,sapply(5:1,rep,3),2,function(rr) {
+  library(bayestensorreg)
+  save_dir <- "results/simulated_diff_rank252/"
+  res <- BTRTucker(input = diff_ranks, ranks = as.numeric(rr),n_iter = 1100, n_burn = 100,hyperparameters = NULL,save_dir = NULL)
+  saveRDS(res, file.path(save_dir,paste0("1_diff_rank_btrt_rank",paste(as.numeric(rr),collapse = ""),".rds")))
+})
+stopCluster(cl)
+
+save_dir <- "results/simulated_diff_rank252/"
+res_files <- list.files(save_dir, full.names = TRUE)
+library(bayestensorreg)
+all_dic <- sapply(res_files, function(x) {
+  res <- readRDS(x)
+  return(DIC(res$llik, burn_in = 100))
+})
+which.min(all_dic)
+# /home/dan/github/BTRTucker/results/simulated_diff_rank//1_diff_rank_btrt_rank555.rds
 #
 # Now run down the possibilities for the max rank 5 - 1
 # start_rank <- rep(5,3)
@@ -362,49 +362,72 @@
 #   return(out)
 # })
 
-all_ranks <- expand.grid(5:1, 5:1, 5:1)
-# Keep only rows with at least one 5
-num_5 <- apply(all_ranks, 1, function(x) {return(sum(x == 5))})
-have_5 <- all_ranks[(num_5 > 0 & num_5 < 3),]
-# Reorder so the models with ranks closest to 5 go first
-have_5 <- have_5[order(apply(have_5, 1, sum), decreasing = TRUE),]
+# # > Off-diagonal exploration ----
+# all_ranks <- expand.grid(5:1, 5:1, 5:1)
+# # Keep only rows with at least one 5
+# num_5 <- apply(all_ranks, 1, function(x) {return(sum(x == 5))})
+# have_5 <- all_ranks[(num_5 > 0 & num_5 < 3),]
+# # Reorder so the models with ranks closest to 5 go first
+# have_5 <- have_5[order(apply(have_5, 1, sum), decreasing = TRUE),]
+#
+# library(parallel)
+# cl <- makeCluster(3)
+# # clusterExport(cl,"diff_ranks")
+# parApply(cl,have_5,1,function(rr) {
+#   library(bayestensorreg)
+#   save_dir <- "~/github/BTRTucker/results/simulated_diff_rank/"
+#   diff_ranks <- readRDS(list.files(save_dir, pattern = "diff_ranks_data.rds", full.names = TRUE))
+#   set.seed(95064)
+#   res <- BTRTucker(input = diff_ranks, ranks = as.numeric(rr),n_iter = 1100, n_burn = 100,hyperparameters = NULL,save_dir = NULL)
+#   saveRDS(res, file.path(save_dir,paste0("1_diff_rank_btrt_rank",paste(as.numeric(rr),collapse = ""),".rds")))
+# })
+# stopCluster(cl)
+#
+# save_dir <- "~/github/BTRTucker/results/simulated_diff_rank/"
+# res_files <- list.files(save_dir, pattern = "rank[1-5]{3}.rds", full.names = TRUE)
+# library(bayestensorreg)
+# all_dic <- sapply(res_files, function(x) {
+#   res <- readRDS(x)
+#   return(DIC(res$llik, burn_in = 100))
+# })
+# which.min(all_dic)
 
-library(parallel)
-cl <- makeCluster(3)
-# clusterExport(cl,"diff_ranks")
-parApply(cl,have_5,1,function(rr) {
-  library(bayestensorreg)
-  save_dir <- "~/github/BTRTucker/results/simulated_diff_rank/"
-  diff_ranks <- readRDS(list.files(save_dir, pattern = "diff_ranks_data.rds", full.names = TRUE))
-  set.seed(95064)
-  res <- BTRTucker(input = diff_ranks, ranks = as.numeric(rr),n_iter = 1100, n_burn = 100,hyperparameters = NULL,save_dir = NULL)
-  saveRDS(res, file.path(save_dir,paste0("1_diff_rank_btrt_rank",paste(as.numeric(rr),collapse = ""),".rds")))
-})
-stopCluster(cl)
-
-save_dir <- "~/github/BTRTucker/results/simulated_diff_rank/"
-res_files <- list.files(save_dir, pattern = "rank[1-5]{3}.rds", full.names = TRUE)
-library(bayestensorreg)
-all_dic <- sapply(res_files, function(x) {
-  res <- readRDS(x)
-  return(DIC(res$llik, burn_in = 100))
-})
-which.min(all_dic)
-
+# > Examine the results graphically ----
 res <- readRDS(names(which.min(all_dic)))
+png("plots/5_rank252_llik.png", width = 8, height = 4.5, res = 72, units = "in")
+plot(res$llik, type ='l', ylab = "Log-likelihood", xlab = "MCMC iteration",
+     main = "Rank 1,1,1")
+abline(v = 100, lty = 2, col = 'red')
+text(x = 100, y = -2300, labels = "burn-in", pos = 2, col = 'red')
+dev.off()
 final_B <- BTRT_final_B(res)
 
-diff_ranks <- readRDS("results/simulated_diff_rank/1_diff_ranks_data.rds")
+# diff_ranks <- readRDS("results/simulated_diff_rank/1_diff_ranks_data.rds")
 B <- diff_ranks$true_B
 (big.i <- which.max(apply(B, 1, function(x) sum(x > 0))))
 (big.j <- which.max(apply(B, 2, function(x) sum(x > 0))))
 (big.k <- which.max(apply(B, 3, function(x) sum(x > 0))))
-image(B[big.i,,])
-image(B[,big.j,])
-image(B[,,big.k])
-image(final_B[big.i,,])
-image(final_B[,big.j,])
-image(final_B[,,big.k])
+png("plots/5_rank252_i_comparison.png", width = 8, height = 4.5, res = 72, units = "in")
+par(mar=c(1,1,3,1), mfrow = c(1,2))
+image(B[big.i,,], col = viridis::viridis(12), zlim = c(-2.5,2.5), xaxt = 'n',
+      yaxt = 'n', main = "Truth, i = 27")
+image(final_B[big.i,,], col = viridis::viridis(12), zlim = c(-2.5,2.5),
+      xaxt = 'n', yaxt = 'n', main = "Estimate, i = 27")
+dev.off()
+png("plots/5_rank252_j_comparison.png", width = 8, height = 4.5, res = 72, units = "in")
+par(mar=c(1,1,3,1), mfrow = c(1,2))
+image(B[,big.j,], col = viridis::viridis(12), zlim = c(-2.5,2.5), xaxt = 'n',
+      yaxt = 'n', main = "Truth, j = 15")
+image(final_B[,big.j,], col = viridis::viridis(12), zlim = c(-2.5,2.5),
+      xaxt = 'n', yaxt = 'n', main = "Estimate, j = 15")
+dev.off()
+png("plots/5_rank252_k_comparison.png", width = 8, height = 4.5, res = 72, units = "in")
+par(mar=c(1,1,3,1), mfrow = c(1,2))
+image(B[,,big.k], col = viridis::viridis(12), zlim = c(-2.5,2.5), xaxt = 'n',
+      yaxt = 'n', main = "Truth, k = 20")
+image(final_B[,,big.k], col = viridis::viridis(12), zlim = c(-2.5,2.5),
+      xaxt = 'n', yaxt = 'n', main = "Estimate, k = 20")
+dev.off()
 err_B <- final_B - B
 summary(c(err_B))
 summary(c(B))
