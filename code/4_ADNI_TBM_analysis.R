@@ -107,11 +107,15 @@
   S <- 11000
   B <- 1000
   library(bayestensorreg)
-  data_dir <- "~/github/BTRTucker/data/"
-  result_dir <- "~/github/BTRTucker/results/"
-  tbm_data <- readRDS(list.files(data_dir, pattern = "slice080_masked", full.names = TRUE))
+  data_dir <- "data/"
+  result_dir <- "results/"
+  tbm_data <- readRDS(list.files(data_dir, pattern = "slice080_TRdata", full.names = TRUE))
   tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
   tbm_data$eta <- tbm_data$eta[,c(3,5)] # Education and APOE4
+  apoe4_factor <- sapply(0:2, function(x) as.numeric(tbm_data$eta[,2] == x))
+  colnames(apoe4_factor) <- paste0("APOE4_",0:2)
+  tbm_data$eta <- cbind(tbm_data$eta, apoe4_factor)
+  tbm_data$eta <- tbm_data$eta[,-2]
   set.seed(47408)
   btr_tucker <-
     BTRTucker(
@@ -122,7 +126,7 @@
       hyperparameters = NULL,
       save_dir = NULL
     )
-  saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_maskedTBM_EduAPOE_BTRTucker_",
+  saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_EduAPOEfactor_BTRTucker_",
                                                   (S-B)/1000,"k_rank",
                                                   paste(r,collapse = ""),".rds")))
   # return(NULL)
