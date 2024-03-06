@@ -871,8 +871,8 @@ library(bayestensorreg)
 library(tidyverse)
 library(ggrepel)
 library(oro.nifti)
-result_dir <- "~/github/BTRTucker/results/"
-data_dir <- "~/github/BTRTucker/data/"
+result_dir <- "results/"
+data_dir <- "data/"
 aal_mdt <- readNIfTI(file.path(data_dir, "aalMDT.nii.gz"))
 aal_template <- aal_mdt@.Data[,,80] |>
   reshape2::melt() |>
@@ -893,8 +893,7 @@ insideAAL <- aal_mdt@.Data[,,80] |>
   mutate(mask = ifelse(mask == 0, 0, 1))
 # > BTR Tucker ----
 # btrt_result_dir <- "~/github/BTRTucker/results/ADNI/BTRTucker_11k_EDA"
-btrt_tbm_files <- list.files(result_dir, full.names = T) |>
-  grep(pattern = "BTRTucker_rank", value = T)
+btrt_tbm_files <- list.files(result_dir, pattern = "factor2_BTRT.+_rank", full.names = TRUE)
 # rep_ranks <- sapply(2:3, function(x) paste(rep(x,2),collapse = ""))
 # final_btrt_tbm_files <- character()
 # for(rr in rep_ranks) {
@@ -957,11 +956,11 @@ btrt_tbm_all_eff_B <- coda::effectiveSize(t(btrt_tbm_vec_B))
 quantile(btrt_tbm_all_eff_B,probs = c(.01,.99))
 
 plt <- reshape2::melt(btrt_tbm_best_B) |>
-  mutate(Data = "Masked") |>
-  full_join(
-    reshape2::melt(unmasked_B) |>
-      mutate(Data = "Unmasked")
-  ) |>
+  # mutate(Data = "Masked") |>
+  # full_join(
+  #   reshape2::melt(unmasked_B) |>
+  #     mutate(Data = "Unmasked")
+  # ) |>
   mutate(value = ifelse(abs(value) > 1e-5,sign(value) * 1e-5,value)) |>
   left_join(insideAAL) |>
   mutate(value = value * mask) |>
@@ -977,7 +976,7 @@ plt <- reshape2::melt(btrt_tbm_best_B) |>
                        na.value = "black"
   ) +
   guides(alpha = "none") +
-  facet_grid(~ Data, scales = "fixed") +
+  # facet_grid(~ Data, scales = "fixed") +
   scale_x_continuous(expand = c(0,0)) +
   scale_y_continuous(expand = c(0,0)) +
   theme_bw() +
@@ -988,8 +987,8 @@ plt <- reshape2::melt(btrt_tbm_best_B) |>
         text = element_text(size = 18),
         aspect.ratio = 1)
 plt
-ggsave("~/github/BTRTucker/plots/5_compare_(un)masked_btrt_rank33.png",
-       plot = plt, width = 6, height = 3)
+ggsave("plots/5_APOE4factor2_btrt_B_rank33.png",
+       plot = plt, width = 4.5, height = 3)
 
 # > BTR CP ----
 # all BTR CP models fail due to infinite values in the posterior precision of beta
@@ -1216,10 +1215,22 @@ reshape2::melt(btrt_tbm_best_gam) |>
   facet_wrap(~Var2, scales = "free")
 
 # This checks the posterior densities
-reshape2::melt(btrt_tbm_best_gam) |>
+plt2 <-
+  reshape2::melt(btrt_tbm_best_gam) |>
+  mutate(Name = c("Education","APOE4_1", "APOE4_2")[Var2]) |>
   ggplot() +
-  stat_density(aes(x = value)) +
-  facet_wrap(~Var2, scales = "free")
+  stat_density(aes(x = value, fill = Name, color = Name), position = "dodge",
+               alpha = 0.3) +
+  scale_color_discrete("") +
+  scale_fill_discrete("") +
+  labs(y = "Posterior Density") +
+  # facet_wrap(~Name, scales = "free")
+  theme_minimal() +
+  theme(axis.title.x = element_blank(),
+        legend.position = "bottom")
+plt2
+ggsave("plots/5_APOE4factor2_btrt_gam_rank33.png",
+       plot = plt2, width = 6.5, height = 3)
 
 reshape2::melt(btrt_tbm_best_gam) |>
   group_by(Var2) |>
@@ -1613,4 +1624,94 @@ reshape2::melt(banded_btrt_B) |>
   geom_raster(aes(x = Var1, y = Var2, fill = value)) +
   facet_grid(R1~R2)
 
-# Compare masked vs. unmasked data ----
+# Plot diff_ranks estimates ----
+library(bayestensorreg)
+subjects = 400
+tensor_dims = c(50, 50, 50)
+CNR = 1
+num_active = 1
+other_covar = c(1, 1)
+
+ranks <- c(2, 5, 2)
+set.seed(95064)
+betas <- mapply(function(r, p) {
+  out <- sapply(seq(r), function(rr){
+    start_point <- round(runif(1, 0.1, 0.9) * p)
+    lgth <- round(runif(1, 0.15, 0.2) * p)
+    end_point <- start_point + lgth
+    if(end_point > p) end_point <- p
+    out <- rep(0, p)
+    out[start_point:end_point] <- 1
+    return(out)
+  })
+}, r = ranks, p = tensor_dims)
+
+G <- array(runif(prod(ranks), 0.5, 1), dim = ranks)
+
+B <- composeTuckerCore(betas, G)
+
+eta <-
+  matrix(rnorm(subjects * length(other_covar)), subjects, length(other_covar))
+gam <- other_covar
+X <-
+  array(rnorm(prod(tensor_dims) * subjects), dim = c(tensor_dims, subjects))
+y <-
+  apply(X, length(dim(X)), function(xx)
+    sum(xx * B * CNR)) + c(eta %*% gam) + rnorm(subjects)
+diff_ranks <- list(
+  y = y,
+  X = X,
+  true_B = B,
+  eta = eta,
+  gam = gam
+)
+save_dir <- "results/simulated_diff_rank252/"
+res_files <- list.files(save_dir, full.names = TRUE)
+library(bayestensorreg)
+all_dic <- sapply(res_files, function(x) {
+  res <- readRDS(x)
+  return(DIC(res$llik, burn_in = 100))
+})
+which.min(all_dic)
+
+# > Examine the results graphically ----
+res <- readRDS(names(which.min(all_dic)))
+png("plots/5_rank252_llik.png", width = 8, height = 4.5, res = 72, units = "in")
+plot(res$llik, type ='l', ylab = "Log-likelihood", xlab = "MCMC iteration",
+     main = "Rank 1,1,1")
+abline(v = 100, lty = 2, col = 'red')
+text(x = 100, y = -2300, labels = "burn-in", pos = 2, col = 'red')
+dev.off()
+final_B <- BTRT_final_B(res)
+
+# diff_ranks <- readRDS("results/simulated_diff_rank/1_diff_ranks_data.rds")
+B <- diff_ranks$true_B
+(big.i <- which.max(apply(B, 1, function(x) sum(x > 0))))
+(big.j <- which.max(apply(B, 2, function(x) sum(x > 0))))
+(big.k <- which.max(apply(B, 3, function(x) sum(x > 0))))
+png("plots/5_rank252_i_comparison.png", width = 8, height = 4.5, res = 72, units = "in")
+par(mar=c(1,1,3,1), mfrow = c(1,2))
+image(B[big.i,,], col = viridis::viridis(12), zlim = c(-2.5,2.5), xaxt = 'n',
+      yaxt = 'n', main = "Truth, slice 1")
+image(final_B[big.i,,], col = viridis::viridis(12), zlim = c(-2.5,2.5),
+      xaxt = 'n', yaxt = 'n', main = "Estimate, slice 1")
+dev.off()
+png("plots/5_rank252_j_comparison.png", width = 8, height = 4.5, res = 72, units = "in")
+par(mar=c(1,1,3,1), mfrow = c(1,2))
+image(B[,big.j,], col = viridis::viridis(12), zlim = c(-2.5,2.5), xaxt = 'n',
+      yaxt = 'n', main = "Truth, slice 2")
+image(final_B[,big.j,], col = viridis::viridis(12), zlim = c(-2.5,2.5),
+      xaxt = 'n', yaxt = 'n', main = "Estimate, slice 2")
+dev.off()
+png("plots/5_rank252_k_comparison.png", width = 8, height = 4.5, res = 72, units = "in")
+par(mar=c(1,1,3,1), mfrow = c(1,2))
+image(B[,,big.k], col = viridis::viridis(12), zlim = c(-2.5,2.5), xaxt = 'n',
+      yaxt = 'n', main = "Truth, slice 3")
+image(final_B[,,big.k], col = viridis::viridis(12), zlim = c(-2.5,2.5),
+      xaxt = 'n', yaxt = 'n', main = "Estimate, slice 3")
+dev.off()
+err_B <- final_B - B
+summary(c(err_B))
+summary(c(B))
+nz_B <- which(B != 0)
+summary(c(err_B[nz_B] / B[nz_B]))

@@ -98,63 +98,77 @@
 # saveRDS(masked_tbm, file = file.path(data_dir,"4_ADNI_TBM_slice080_masked_TRdata,rds"))
 
 # ANALYSIS ----
-# > Bayes Tucker ----
-# ranks <- as.matrix(expand.grid(1:4,1:4))
-# library(parallel)
-# cl <- makeCluster(8) # Number of parallel cores
-# parApply(cl, ranks, 1, function(r) {
-  r <- c(3,3)
-  S <- 11000
-  B <- 1000
-  library(bayestensorreg)
-  data_dir <- "data/"
-  result_dir <- "results/"
-  tbm_data <- readRDS(list.files(data_dir, pattern = "slice080_TRdata", full.names = TRUE))
-  tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-  tbm_data$eta <- tbm_data$eta[,c(3,5)] # Education and APOE4
-  apoe4_factor <- sapply(0:2, function(x) as.numeric(tbm_data$eta[,2] == x))
-  colnames(apoe4_factor) <- paste0("APOE4_",0:2)
-  tbm_data$eta <- cbind(tbm_data$eta, apoe4_factor)
-  tbm_data$eta <- tbm_data$eta[,-2]
-  set.seed(47408)
-  btr_tucker <-
-    BTRTucker(
-      input = tbm_data,
-      ranks = r,
-      n_iter = S,
-      n_burn = B,
-      hyperparameters = NULL,
-      save_dir = NULL
-    )
-  saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_EduAPOEfactor_BTRTucker_",
-                                                  (S-B)/1000,"k_rank",
-                                                  paste(r,collapse = ""),".rds")))
-  # return(NULL)
-# })
+# # > Bayes Tucker ----
+# # ranks <- as.matrix(expand.grid(1:4,1:4))
+# # library(parallel)
+# # cl <- makeCluster(8) # Number of parallel cores
+# # parApply(cl, ranks, 1, function(r) {
+#   r <- c(3,3)
+#   S <- 11000
+#   B <- 1000
+#   library(bayestensorreg)
+#   data_dir <- "data/"
+#   result_dir <- "results/"
+#   tbm_data <- readRDS(list.files(data_dir, pattern = "slice080_TRdata", full.names = TRUE))
+#   tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
+#   tbm_data$eta <- tbm_data$eta[,c(3,5)] # Education and APOE4
+#   apoe4_factor <- sapply(1:2, function(x) as.numeric(tbm_data$eta[,2] == x))
+#   colnames(apoe4_factor) <- paste0("APOE4_",1:2)
+#   tbm_data$eta <- cbind(tbm_data$eta, apoe4_factor)
+#   tbm_data$eta <- tbm_data$eta[,-2]
+#   set.seed(47408)
+#   btr_tucker <-
+#     BTRTucker(
+#       input = tbm_data,
+#       ranks = r,
+#       n_iter = S,
+#       n_burn = B,
+#       hyperparameters = NULL,
+#       save_dir = NULL
+#     )
+#   saveRDS(btr_tucker, file.path(result_dir,paste0("4_ADNI_TBM_EduAPOEfactor2_BTRTucker_",
+#                                                   (S-B)/1000,"k_rank",
+#                                                   paste(r,collapse = ""),".rds")))
+#   # return(NULL)
+# # })
 
-# # >  Bayes CP ----
+# >  Bayes CP ----
 # library(parallel)
 # cl <- makeCluster(4) # Number of parallel cores
 # parSapply(cl, 1:4, function(r) {
-#   library(bayestensorreg)
-#   data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
-#   result_dir <- "~/github/BTRTucker/results/ADNI"
-#   tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
-#   tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
-#   tbm_data$eta <- tbm_data$eta[,-1]
-#   set.seed(47408)
-#   btr_cp <-
-#     try(BTR_CP(
-#       input = tbm_data,
-#       max_rank = r,
-#       n_iter = 100,
-#       n_burn = 0,
-#       hyperparameters = NULL,
-#       save_dir = "~/Desktop"
-#     ))
-#   saveRDS(btr_cp, file.path(result_dir,paste0("4_ADNI_TBM_BTR_CP_rank",paste(r,collapse = ""),".rds")))
-#   return(NULL)
+r <- 1
+  S <- 11000
+  B <- 1000
+  library(bayestensorreg)
+  data_dir <- "C:/CodeDSv4/github/BTRTucker/data/"
+  result_dir <- "C:/CodeDSv4/github/BTRTucker/results/"
+  tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
+  tbm_data$y <- (tbm_data$y - mean(tbm_data$y))
+  tbm_data$eta <- tbm_data$eta[,c(3,5)] # Education and APOE4
+  set.seed(47408)
+  # btr_cp <-
+  #   try(BTR_CP(
+  #     input = tbm_data,
+  #     max_rank = r,
+  #     n_iter = 100,
+  #     n_burn = 0,
+  #     hyperparameters = NULL,
+  #     save_dir = "~/Desktop"
+  #   ))
+  btr_cp <-
+    try(BTRTucker(
+      input = tbm_data,
+      ranks = rep(r, 2),
+      n_iter = S,
+      n_burn = B,
+      CP = TRUE,
+      hyperparameters = NULL,
+      save_dir = NULL
+    ))
+  saveRDS(btr_cp, file.path(result_dir,paste0("4_ADNI_TBM_BTR_CP_rank",r,".rds")))
+  return(NULL)
 # })
+# parallel::stopCluster(cl)
 
 # # > FTR Tucker ----
 # ranks <- as.matrix(expand.grid(1:4,1:4))
