@@ -57,40 +57,40 @@
 # })
 # stopCluster(cl)
 #
-# > Bayesian CP ----
-library(parallel)
-cl <- makeCluster(4)
-parSapply(cl, seq(4), function(rank) {
-  # This package, available on GitHub at 'danieladamspencer/bayestensorreg' is
-  # required for simulating data and performing analyses
-  library(bayestensorreg)
-  # Read in the data
-  save_dir <- "C:/CodeDSv4/github/BTRTucker/results/data_simulations"
-  sim_data <- readRDS(file.path(save_dir,"1_simulated_data.rds"))
-  # >> Perform the analyses using the bayestensorreg package ----
-  bayes_result <-
-    BTRTucker(
-      input = sim_data,
-      ranks = rep(rank, 2),
-      n_iter = 11000,
-      n_burn = 1000,
-      CP = TRUE,
-      hyperparameters = NULL,
-      save_dir = NULL
-    )
-  # >> Save the results for visualization and comparison ----
-  saveRDS(bayes_result,
-          file.path(
-            save_dir,
-            paste0(
-              "1_simulated_data_btr_cp_results_rank",
-              paste(as.numeric(rank), collapse = ""),
-              ".rds"
-            )
-          ))
-  return(NULL)
-})
-stopCluster(cl)
+# # > Bayesian CP ----
+# library(parallel)
+# cl <- makeCluster(4)
+# parSapply(cl, seq(4), function(rank) {
+#   # This package, available on GitHub at 'danieladamspencer/bayestensorreg' is
+#   # required for simulating data and performing analyses
+#   library(bayestensorreg)
+#   # Read in the data
+#   save_dir <- "C:/CodeDSv4/github/BTRTucker/results/data_simulations"
+#   sim_data <- readRDS(file.path(save_dir,"1_simulated_data.rds"))
+#   # >> Perform the analyses using the bayestensorreg package ----
+#   bayes_result <-
+#     BTRTucker(
+#       input = sim_data,
+#       ranks = rep(rank, 2),
+#       n_iter = 11000,
+#       n_burn = 1000,
+#       CP = TRUE,
+#       hyperparameters = NULL,
+#       save_dir = NULL
+#     )
+#   # >> Save the results for visualization and comparison ----
+#   saveRDS(bayes_result,
+#           file.path(
+#             save_dir,
+#             paste0(
+#               "1_simulated_data_btr_cp_results_rank",
+#               paste(as.numeric(rank), collapse = ""),
+#               ".rds"
+#             )
+#           ))
+#   return(NULL)
+# })
+# stopCluster(cl)
 
 # # > Frequentist Tucker ----
 # # library(parallel)
@@ -161,25 +161,25 @@ stopCluster(cl)
 # # })
 # # stopCluster(cl)
 
-# # > General Linear Model ----
-# save_dir <- "~/github/BTRTucker/results/data_simulations"
-# sim_data <- readRDS(file.path(save_dir,"1_simulated_data.rds"))
-# ytil <- lm(sim_data$y ~ -1 + sim_data$eta)$residuals
-# library(parallel)
-# cl <- makeCluster(8)
-# glm_B <- parApply(cl,sim_data$X,1:2,function(x,ytil) {
-#   out <- lm(ytil ~ -1 + x)$coefficients
-#   return(out)
-# }, ytil = ytil)
-# glm_pvals <- parApply(cl,sim_data$X,1:2,function(x,ytil) {
-#   out <- summary(lm(ytil ~ -1 + x))$coefficients[4]
-#   return(out)
-# }, ytil = ytil)
-# glm_pvals2 <- matrix(p.adjust(c(glm_pvals),"BH"),nrow = nrow(glm_pvals),ncol = ncol(glm_pvals))
-# glm_active <- matrix(as.numeric(glm_pvals < 0.05),nrow = nrow(glm_pvals),ncol = ncol(glm_pvals))
-# final_glm_B <- glm_B * glm_active
-# reshape2::melt(final_glm_B) |> ggplot() + geom_raster(aes(x = Var1, y = Var2, fill = value))
-# saveRDS(final_glm_B, file = file.path(save_dir, "1_glm_B.rds"))
+# > General Linear Model ----
+save_dir <- "results/data_simulations"
+sim_data <- readRDS(file.path(save_dir,"1_simulated_data.rds"))
+ytil <- lm(sim_data$y ~ -1 + sim_data$eta)$residuals
+library(parallel)
+cl <- makeCluster(7)
+glm_B <- parApply(cl,sim_data$X,1:2,function(x,ytil) {
+  out <- lm(ytil ~ -1 + x)$coefficients
+  return(out)
+}, ytil = ytil)
+glm_pvals <- parApply(cl,sim_data$X,1:2,function(x,ytil) {
+  out <- summary(lm(ytil ~ -1 + x))$coefficients[4]
+  return(out)
+}, ytil = ytil)
+glm_pvals <- matrix(p.adjust(c(glm_pvals),"BH"),nrow = nrow(glm_pvals),ncol = ncol(glm_pvals))
+glm_active <- matrix(as.numeric(glm_pvals < 0.05),nrow = nrow(glm_pvals),ncol = ncol(glm_pvals))
+final_glm_B <- glm_B * glm_active
+reshape2::melt(final_glm_B) |> ggplot() + geom_raster(aes(x = Var1, y = Var2, fill = value))
+saveRDS(final_glm_B, file = file.path(save_dir, "1_glm_B.rds"))
 
 
 # # Simulated data with banded nonzero regions ----

@@ -70,41 +70,44 @@ sim_coef_plot <- reshape2::melt(sim_data$true_B) |>
 ggsave(filename = "~/github/BTRTucker/plots/5_sim_coefficient.png",plot = sim_coef_plot, width = 5, height = 5)
 
 # Simulated data tensor coefficient ----
-result_dir <- "~/github/BTRTucker/results/data_simulations"
+result_dir <- "results/data_simulations"
 # >> BTR Tucker ----
 library(bayestensorreg)
 btrt_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "btrtucker", value = T)
 # Now using the rank selection pattern to find the optimal rank
-btrt_rank_sel <- c(sapply(1:5,function(x) paste(rep(x,2),collapse = "")),"34","43")
-final_btrt_files <- character()
-for(btrt_rank in btrt_rank_sel){
-  final_btrt_files <- c(final_btrt_files,grep(pattern = btrt_rank, btrt_files,value = T))
-}
-btrt_files <- final_btrt_files
+# btrt_rank_sel <- c(sapply(1:5,function(x) paste(rep(x,2),collapse = "")),"34","43")
+# final_btrt_files <- character()
+# for(btrt_rank in btrt_rank_sel){
+#   final_btrt_files <- c(final_btrt_files,grep(pattern = btrt_rank, btrt_files,value = T))
+# }
+# btrt_files <- final_btrt_files
 
-job::job({
-  library(parallel)
-  cl <- makeCluster(7)
-  btrt_B <- parLapply(cl,btrt_files, function(fn){
-    library(bayestensorreg)
-    res <- readRDS(fn)
-    out_B <- BTRT_final_B(res)
-    return(out_B)
-  })
-  stopCluster(cl)
-  saveRDS(btrt_B, file = "~/github/BTRTucker/results/data_simulations/5_btrt_B.rds")
-}, import = c(btrt_files))
+# job::job({
+#   library(parallel)
+#   cl <- makeCluster(7)
+#   btrt_B <- parLapply(cl,btrt_files, function(fn){
+#     library(bayestensorreg)
+#     res <- readRDS(fn)
+#     out_B <- BTRT_final_B(res)
+#     return(out_B)
+#   })
+#   stopCluster(cl)
+#   saveRDS(btrt_B, file = "results/data_simulations/5_btrt_B.rds")
+# }, import = c(btrt_files))
 
-btrt_B <- readRDS("~/github/BTRTucker/results/data_simulations/5_btrt_B.rds")
-names(btrt_B) <- btrt_files
+btrt_B <- readRDS("results/data_simulations/5_btrt_B.rds")
+btrt_ranks <- stringr::str_extract(string = btrt_files, "rank[1-9]{2}")
+btrt_ranks <- sub("rank", "", btrt_ranks)
+names(btrt_B) <- btrt_ranks
 library(tidyverse)
 btrt_df <-
   reshape2::melt(btrt_B) |>
-  mutate(R1 = substring(L1,97,97),
-         R2 = substring(L1,98,98),
+  mutate(R1 = substring(L1,1,1),
+         R2 = substring(L1,2,2),
          matchRank = R1 == R2) |>
-  select(-L1)
+  select(-L1) |>
+  filter(R1 != "5" & R2 != "5")
 btrt_plt <- ggplot(btrt_df) +
   geom_tile(aes(x = Var1, y = Var2, fill = value))+
   scale_fill_gradient2("",high = "blue",low = "red",mid = "white", limits = c(-1,1)) +
@@ -122,24 +125,31 @@ btrt_plt <- ggplot(btrt_df) +
         text = element_text(size = 18),
         aspect.ratio = 1)
 btrt_plt
-ggsave(filename = "~/github/BTRTucker/plots/5_simulated_btrt_B.png", plot = btrt_plt, width = 11, height = 9)
+ggsave(filename = "plots/5_simulated_btrt_B.png", plot = btrt_plt, width = 11, height = 9)
 
 # >> BTR CP ----
 btrcp_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "btr_cp", value = T)
 
-# btrcp_B <-sapply(btrcp_files, function(fn){
+# btrcp_B <- sapply(btrcp_files, function(fn){
 #   res <- readRDS(fn)
-#   out_B <- btr_cp_final_B(res)
+#   # out_B <- btr_cp_final_B(res)
+#   # This is for when the CP model is run using the BTRT code with CP = TRUE
+#   out_B <- BTRT_final_B(res)
 #   return(out_B)
 # }, simplify = F)
-# saveRDS(btrcp_B, file = "~/github/BTRTucker/results/data_simulations/5_btrcp_B.rds")
-btrcp_B <- readRDS("~/github/BTRTucker/results/data_simulations/5_btrcp_B.rds")
+# saveRDS(btrcp_B, file = "results/data_simulations/5_btrcp_B.rds")
+btrcp_B <- readRDS("results/data_simulations/5_btrcp_B.rds")
+btrcp_ranks <- stringr::str_extract(btrcp_files, "rank[1-9]")
+btrcp_ranks <- sub("rank", "", btrcp_ranks)
+names(btrcp_B) <- btrcp_ranks
 library(tidyverse)
 btrcp_df <-
   reshape2::melt(btrcp_B) |>
-  mutate(R = substring(L1,94,94)) |>
+  mutate(R = L1) |>
   select(-L1)
+# Enforce thresholding
+# btrcp_df$value[btrcp_df$value > 1] <- 1
 btrcp_plt <- ggplot(btrcp_df) +
   geom_tile(aes(x = Var1, y = Var2, fill = value))+
   scale_fill_gradient2("",high = "blue",low = "red",mid = "white", limits = c(-1,1)) +
@@ -154,7 +164,7 @@ btrcp_plt <- ggplot(btrcp_df) +
         text = element_text(size = 18),
         aspect.ratio = 1)
 btrcp_plt
-ggsave(filename = "~/github/BTRTucker/plots/5_simulated_btrcp_B.png", plot = btrcp_plt, width = 16, height = 3)
+ggsave(filename = "plots/5_simulated_btrcp_B.png", plot = btrcp_plt, width = 16, height = 3)
 
 # >> FTR Tucker ----
 ftrt_files <- list.files(result_dir, full.names = T) |>
@@ -166,11 +176,14 @@ ftrt_B <-sapply(ftrt_files, function(fn){
   return(res$B)
 }, simplify = F)
 library(tidyverse)
+ftrt_ranks <- stringr::str_extract(ftrt_files, "rank[1-9]{2}")
+ftrt_ranks <- sub("rank", "", ftrt_ranks)
+names(ftrt_B) <- ftrt_ranks
 ftrt_df <-
   reshape2::melt(ftrt_B) |>
-  mutate(R1 = substring(L1,97,97), # for with LASSO
+  mutate(R1 = substring(L1,1,1), # for with LASSO
          # R1 = substring(L1,105,105), # for noLASSO
-         R2 = substring(L1,98,98), # for with LASSO
+         R2 = substring(L1,2,2), # for with LASSO
          # R2 = substring(L1,106,106), #for noLASSO
          matchRank = R1 == R2) |>
   select(-L1)
@@ -189,7 +202,7 @@ ftrt_plt <- ggplot(ftrt_df) +
         text = element_text(size = 18),
         aspect.ratio = 1)
 ftrt_plt
-ggsave(filename = "~/github/BTRTucker/plots/5_simulated_ftrt_B.png", plot = ftrt_plt, width = 16, height = 9)
+ggsave(filename = "plots/5_simulated_ftrt_B.png", plot = ftrt_plt, width = 16, height = 9)
 
 # >> FTR CP ----
 ftrcp_files <- list.files(result_dir, full.names = T) |>
@@ -199,10 +212,13 @@ ftrcp_B <-sapply(ftrcp_files, function(fn){
   res <- readRDS(fn)
   return(res$B)
 }, simplify = F)
+ftrcp_ranks <- stringr::str_extract(ftrcp_files, "rank[1-9]")
+ftrcp_ranks <- sub("rank", "", ftrcp_ranks)
+names(ftrcp_B) <- ftrcp_ranks
 library(tidyverse)
 ftrcp_df <-
   reshape2::melt(ftrcp_B) |>
-  mutate(R = substring(L1,94,94)) |>
+  mutate(R = L1) |>
   select(-L1)
 ftrcp_plt <- ggplot(ftrcp_df) +
   geom_tile(aes(x = Var1, y = Var2, fill = value))+
@@ -218,27 +234,38 @@ ftrcp_plt <- ggplot(ftrcp_df) +
         text = element_text(size = 18),
         aspect.ratio = 1)
 ftrcp_plt
-ggsave(filename = "~/github/BTRTucker/plots/5_simulated_ftrcp_B.png", plot = ftrcp_plt, width = 16, height = 3)
+ggsave(filename = "plots/5_simulated_ftrcp_B.png", plot = ftrcp_plt, width = 16, height = 3)
 
 # Simulated data RMSE table ----
 library(tidyverse)
-result_dir <- "~/github/BTRTucker/results/data_simulations"
+result_dir <- "results/data_simulations"
 sim_data <- readRDS(file.path(result_dir,"1_simulated_data.rds"))
 true_B_df <- reshape2::melt(sim_data$true_B, value.name = "True")
 
-btrt_B <- readRDS("~/github/BTRTucker/results/data_simulations/5_btrt_B.rds")
+btrt_B <- readRDS("results/data_simulations/5_btrt_B.rds")
+btrt_files <- list.files("results/data_simulations/", pattern = "btrtucker")
+btrt_ranks <- stringr::str_extract(btrt_files, pattern = "rank[1-9]{2}")
+btrt_ranks <- sub("rank", "", btrt_ranks)
+names(btrt_B) <- btrt_ranks
+# Selected ranks
+# btrt_rank_sel <- c(sapply(1:5,function(x) paste(rep(x,2),collapse = "")),"34","43")
+# names(btrt_B) <- btrt_rank_sel
 
 btrt_df <-
   reshape2::melt(btrt_B) |>
-  mutate(R1 = substring(L1,97,97),
-         R2 = substring(L1,98,98),
+  mutate(R1 = substring(L1,1,1),
+         R2 = substring(L1,2,2),
          matchRank = R1 == R2) |>
-  select(-L1)
+  select(-L1) |>
+  filter(R1 != "5" & R2 != "5")
 
-btrcp_B <- readRDS("~/github/BTRTucker/results/data_simulations/5_btrcp_B.rds")
+btrcp_B <- readRDS("results/data_simulations/5_btrcp_B.rds")
+btrcp_ranks <- stringr::str_extract(names(btrcp_B), pattern = "rank[1-9]")
+btrcp_ranks <- sub("rank", "", btrcp_ranks)
+names(btrcp_B) <- btrcp_ranks
 btrcp_df <-
   reshape2::melt(btrcp_B) |>
-  mutate(R = substring(L1,94,94)) |>
+  mutate(R = L1) |>
   select(-L1)
 
 ftrt_files <- list.files(result_dir, full.names = T) |>
@@ -249,12 +276,15 @@ ftrt_B <-sapply(ftrt_files, function(fn){
   res <- readRDS(fn)
   return(res$B)
 }, simplify = F)
+
+ftrt_ranks <- stringr::str_extract(ftrt_files, "rank[1-9]{2}")
+ftrt_ranks <- sub("rank", "", ftrt_ranks)
+names(ftrt_B) <- ftrt_ranks
+
 ftrt_df <-
   reshape2::melt(ftrt_B) |>
-  mutate(R1 = substring(L1,97,97), # for with LASSO
-         # R1 = substring(L1,105,105), # for noLASSO
-         R2 = substring(L1,98,98), # for with LASSO
-         # R2 = substring(L1,106,106), #for noLASSO
+  mutate(R1 = substring(L1,1,1), # for with LASSO
+         R2 = substring(L1,2,2), # for with LASSO
          matchRank = R1 == R2) |>
   select(-L1)
 
@@ -265,9 +295,14 @@ ftrcp_B <-sapply(ftrcp_files, function(fn){
   res <- readRDS(fn)
   return(res$B)
 }, simplify = F)
+
+ftrcp_ranks <- stringr::str_extract(ftrcp_files, "rank[1-9]")
+ftrcp_ranks <- sub("rank", "", ftrcp_ranks)
+names(ftrcp_B) <- ftrcp_ranks
+
 ftrcp_df <-
   reshape2::melt(ftrcp_B) |>
-  mutate(R = substring(L1,94,94)) |>
+  mutate(R = L1) |>
   select(-L1)
 
 glm_B <- readRDS(file.path(result_dir,"1_glm_B.rds"))
@@ -341,7 +376,7 @@ job::job({
 },  import = c(btrt_files))
 
 # Simulated data best coefficients ----
-result_dir <- "~/github/BTRTucker/results/data_simulations"
+result_dir <- "results/data_simulations"
 library(bayestensorreg)
 # > BTRT ----
 btrt_files <- list.files(result_dir, full.names = T) |>
@@ -379,9 +414,9 @@ btrcp_dic <- sapply(btrcp_files, function(fn){
   out <- DIC(res$llik, burn_in = 1000)
   return(out)
 })
-which.min(btrcp_dic) # Rank 1
-# Rank 1
-# This is weird, so I'm going to look at the log-likelihood values
+which.min(btrcp_dic) # Rank 4
+# Rank 4
+# This reflects what happens in the BTRT fit
 btrcp_llik <- sapply(btrcp_files, function(fn){
   res <- readRDS(fn)
   return(res$llik)
@@ -441,8 +476,8 @@ best_df <- filter(btrt_df,R1 == 4, R2 == 4) |>
   mutate(Model = "BTR Tucker 4,4") |>
   select(Var1, Var2, value, Model) |>
   full_join(
-    filter(btrcp_df,R == 1) |>
-      mutate(Model = "BTR CP 1") |>
+    filter(btrcp_df,R == 4) |>
+      mutate(Model = "BTR CP 4") |>
       select(Var1, Var2, value, Model)
   ) |>
   full_join(
@@ -461,7 +496,7 @@ best_df <- filter(btrt_df,R1 == 4, R2 == 4) |>
   full_join(
     mutate(reshape2::melt(sim_data$true_B),Model = "Truth")
   ) |>
-  mutate(Model = factor(Model, levels = c("GLM","BTR CP 1","FTR Tucker 4,4","FTR CP 4", "BTR Tucker 4,4","Truth")))
+  mutate(Model = factor(Model, levels = c("GLM","BTR CP 4","FTR Tucker 4,4","FTR CP 4", "BTR Tucker 4,4","Truth")))
 
 # > Plot ----
 best_plt <-
