@@ -128,6 +128,7 @@ btrt_plt
 ggsave(filename = "plots/5_simulated_btrt_B.png", plot = btrt_plt, width = 11, height = 9)
 
 # >> BTR CP ----
+result_dir <- "results/data_simulations_R3/"
 btrcp_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "btr_cp", value = T)
 
@@ -138,7 +139,7 @@ btrcp_files <- list.files(result_dir, full.names = T) |>
 #   out_B <- BTRT_final_B(res)
 #   return(out_B)
 # }, simplify = F)
-# saveRDS(btrcp_B, file = "results/data_simulations/5_btrcp_B.rds")
+# saveRDS(btrcp_B, file = "results/data_simulations_R3/5_btrcp_B.rds")
 btrcp_B <- readRDS("results/data_simulations/5_btrcp_B.rds")
 btrcp_ranks <- stringr::str_extract(btrcp_files, "rank[1-9]")
 btrcp_ranks <- sub("rank", "", btrcp_ranks)
@@ -376,7 +377,7 @@ job::job({
 },  import = c(btrt_files))
 
 # Simulated data best coefficients ----
-result_dir <- "results/data_simulations"
+result_dir <- "results/data_simulations_R3"
 library(bayestensorreg)
 # > BTRT ----
 btrt_files <- list.files(result_dir, full.names = T) |>
