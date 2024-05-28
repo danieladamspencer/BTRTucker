@@ -639,23 +639,39 @@ ggsave(filename = file.path(plot_dir,"5_sim_llik.png"), plot = llik_plt,
        width = 8, height = 6)
 
 # Plot the TBM B ----
-result_dir <- "~/github/BTRTucker/results/ADNI/"
+result_dir <- "~/github/BTRTucker/results/ADNI_R3/"
 # > BTR Tucker ----
-btrt_result_dir <- "~/github/BTRTucker/results/ADNI/BTRTucker_11k"
+library(bayestensorreg)
+library(stringr)
+btrt_result_dir <- "~/github/BTRTucker/results/ADNI_R3/"
 btrt_tbm_files <- list.files(btrt_result_dir, full.names = T) |>
   grep(pattern = "BTRTucker_rank", value = T)
 
 # job::job({
+#   print(getwd())
 #   library(parallel)
-#   cl <- makeCluster(9)
+#   cl <- makeCluster(3)
 #   btrt_tbm_B <- parLapply(cl,btrt_tbm_files, function(fn){
 #     library(bayestensorreg)
 #     res <- readRDS(fn)
 #     out_B <- BTRT_final_B(res)
 #   return(out_B)})
 #   saveRDS(btrt_tbm_B, file = file.path(btrt_result_dir,"5_btrt_slice080_tbm_B.rds"))
-# }, import = c(btrt_tbm_files))
-btrt_tbm_B <- readRDS(file.path(btrt_result_dir,"5_btrt_slice080_tbm_B.rds"))
+# }, import = c("btrt_tbm_files", "btrt_result_dir"))
+
+# This one is for the RAM-challenged (like me)
+# btrt_tbm_B <- list()
+# for(fn in btrt_tbm_files) {
+#   model_rank <- str_extract(fn, "rank[0-9]{2}")
+#   cat(model_rank, "\n")
+#   res <- readRDS(fn)
+#   btrt_tbm_B[[model_rank]] <- BTRT_final_B(res)
+#   rm(res)
+#   gc()
+# }
+# saveRDS(btrt_tbm_B, file = file.path(btrt_result_dir, "5_btrt_slice080_tbm_B.rds"))
+
+btrt_tbm_B <- readRDS(file.path(result_dir,"5_btrt_slice080_tbm_B.rds"))
 names(btrt_tbm_B) <- btrt_tbm_files
 
 library(tidyverse)
@@ -679,6 +695,7 @@ btrt_tbm_df <-
   reshape2::melt(btrt_tbm_B) |>
   mutate(#R1 = substring(L1,71,71),
          #R2 = substring(L1,72,72),
+        model_rank =
          R1 = substring(L1, 85,85),
          R2 = substring(L1,86,86),
          value = value / (1e-5),
@@ -719,6 +736,19 @@ btrcp_tbm_files <- list.files(result_dir, full.names = T) |>
 #   return(out_B)})
 #   saveRDS(btrcp_tbm_B, file = "~/github/BTRTucker/results/ADNI/5_btrcp_slice080_tbm_B.rds")
 # }, import = c(btrcp_tbm_files))
+
+# For the RAM-challenged
+btrcp_tbm_B <- list()
+for(fn in rev(btrcp_tbm_files)) {
+  model_rank <- str_extract(fn, "rank[1-4]")
+  cat(model_rank, "\n")
+  res <- readRDS(fn)
+  btrcp_tbm_B[[model_rank]] <- BTRT_final_B(res)
+  rm(res)
+  gc()
+}
+saveRDS(btrcp_tbm_B, file = file.path(result_dir,"5_btrcp_slice080_tbm_B.rds"))
+
 btrcp_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrcp_slice080_tbm_B.rds")
 names(btrcp_tbm_B) <- btrcp_tbm_files
 
@@ -730,7 +760,8 @@ n_samps <- sapply(btrcp_tbm_files, function(fn){
 
 library(tidyverse)
 library(oro.nifti)
-mdt_template <- readNIfTI("~/github/BTRTucker/data/ADNI/ADNI 11/ADNI_MDT/ADNI_ICBM9P_mni_4step_MDT.nii.gz")
+data_dir <- "~/github/BTRTucker/data/"
+mdt_template <- readNIfTI(file.path(data_dir, "ADNI_ICBM9P_mni_4step_MDT.nii.gz"))
 library(fslr)
 mdt_template <- fslbet(mdt_template)
 template_grob <-
@@ -746,7 +777,7 @@ template_grob <-
   scale_y_continuous(expand = c(0,0))
 template_grob <- ggplotGrob(template_grob)
 btrcp_tbm_df <-
-  reshape2::melt(btrcp_tbm_B) |>
+  reshape2::melt(btrcp_tbm_B) #|>
   mutate(Rank = substring(L1,69,69),
          value = value / (1e-5),
          value = ifelse(value > 1,1,value),
@@ -907,7 +938,7 @@ library(bayestensorreg)
 library(tidyverse)
 library(ggrepel)
 library(oro.nifti)
-result_dir <- "results/"
+result_dir <- "results/ADNI_R3/"
 data_dir <- "data/"
 aal_mdt <- readNIfTI(file.path(data_dir, "aalMDT.nii.gz"))
 aal_template <- aal_mdt@.Data[,,80] |>
@@ -929,7 +960,7 @@ insideAAL <- aal_mdt@.Data[,,80] |>
   mutate(mask = ifelse(mask == 0, 0, 1))
 # > BTR Tucker ----
 # btrt_result_dir <- "~/github/BTRTucker/results/ADNI/BTRTucker_11k_EDA"
-btrt_tbm_files <- list.files(result_dir, pattern = "factor2_BTRT.+_rank", full.names = TRUE)
+btrt_tbm_files <- list.files(result_dir, pattern = "BTRT.+_rank", full.names = TRUE)
 # rep_ranks <- sapply(2:3, function(x) paste(rep(x,2),collapse = ""))
 # final_btrt_tbm_files <- character()
 # for(rr in rep_ranks) {
@@ -1751,3 +1782,32 @@ summary(c(err_B))
 summary(c(B))
 nz_B <- which(B != 0)
 summary(c(err_B[nz_B] / B[nz_B]))
+
+# BTR CP JMLR simulations ----
+# These simulations are based off of the same data that were used in
+# Guhaniyogi, Qamar, and Dunson (2017). These have a number of shapes that are
+# set as 2D true coefficients in the simulated data. These shapes are called:
+# R3, R5, shapes, hawk, horse, palm
+## Data ----
+sim_data <- readRDS("~/github/BTRTucker/data/1_BTRCP_JMLR_image_sim_data.rds")
+result_dir <- "~/github/BTRTucker/results/BTRCP_JMLR_simulations/"
+## Determine best result ----
+# Use DIC for the BTR CP and BTR Tucker models
+for(img_name in c("R3", "R5", "shapes", "hawk", "horse", "palm")) {
+  img_name <- "hawk"
+  img <- as.matrix(sim_data[[img_name]])
+  # BTR CP
+  res_files <- list.files(result_dir, pattern = paste0("btrcp_",img_name), full.names = TRUE)
+  btrcp_dic <- sapply(res_files, function(x) {
+    btrcp_res <- readRDS(x)
+    DIC(btrcp_res$llik, burn_in = 300)})
+  btrcp_res <- readRDS(res_files[which.min(btrcp_dic)])
+  btrcp_B <- BTRT_final_B(btrcp_res)
+  # BTR Tucker
+  res_files <- list.files(result_dir, pattern = paste0("btrt_",img_name), full.names = TRUE)
+  btrt_dic <- sapply(res_files, function(x) {
+    btrt_res <- readRDS(x)
+    DIC(btrt_res$llik, burn_in = 300)})
+  btrt_res <- readRDS(res_files[which.min(btrt_dic)])
+  btrt_B <- BTRT_final_B(btrt_res)
+}
