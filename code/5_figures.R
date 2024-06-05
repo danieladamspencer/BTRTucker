@@ -1,8 +1,9 @@
 # This is a script to create figures for the BTRT project
+library(bayestensorreg)
 # Plot TBM slices of data ----
-data_dir <- "~/github/BTRTucker/data/ADNI/ADNI 11"
+data_dir <- "~/github/BTRTucker/data"
 plot_dir <- "~/github/BTRTucker/plots"
-tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice110_TRdata.rds"))
+tbm_data <- readRDS(file.path(data_dir,"4_ADNI_TBM_slice080_TRdata.rds"))
 library(tidyverse)
 library(oro.nifti)
 library(fslr)

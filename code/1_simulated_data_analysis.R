@@ -470,13 +470,13 @@ palm_dat <- list(y = c(sim_data$y_palm), X = sim_data$X)
 #### FTR Tucker ----
 #
 #### BTR CP ----
-# for(R in 3:15) {
-  # cat("BTR CP Rank", R, "\n")
+for(R in 3:15) {
+  cat("BTR CP Rank", R, "\n")
   # R3
-  # cat("R3 \n")
-  # btrcp_out <- BTRTucker(R3_dat, ranks = c(R,R), n_iter = 1300, n_burn = 300, CP = TRUE)
-  # saveRDS(btrcp_out, file = file.path(result_dir,
-  #                                     paste0("1_btrcp_R3_rank",sprintf("%02g",R), ".rds")))
+  cat("R3 \n")
+  btrcp_out <- BTRTucker(R3_dat, ranks = c(R,R), n_iter = 1300, n_burn = 300, CP = TRUE)
+  saveRDS(btrcp_out, file = file.path(result_dir,
+                                      paste0("1_btrcp_R3_rank",sprintf("%02g",R), ".rds")))
   # R5
   # cat("R5 \n")
   # btrcp_out <- BTRTucker(R5_dat, ranks = c(R,R), n_iter = 1300, n_burn = 300, CP = TRUE)
@@ -501,11 +501,11 @@ palm_dat <- list(y = c(sim_data$y_palm), X = sim_data$X)
   # btrcp_out <- BTRTucker(palm_dat, ranks = c(R,R), n_iter = 1300, n_burn = 300, CP = TRUE)
   # saveRDS(btrcp_out, file = file.path(result_dir,
   # paste0("1_btrcp_palm_rank",sprintf("%02g",R), ".rds")))
-# }
+}
 
 #### BTR Tucker ----
-for(R in 3:15) {
-  cat("BTR Tucker Rank", R, R, "\n")
+# for(R in 3:15) {
+  # cat("BTR Tucker Rank", R, R, "\n")
   # R3
   # cat("R3 \n")
   # btrt_out <- BTRTucker(R3_dat, ranks = c(R, R), n_iter = 1300, n_burn = 300, CP = FALSE)
@@ -523,11 +523,11 @@ for(R in 3:15) {
   # btrt_out <- BTRTucker(hawk_dat, ranks = c(R, R), n_iter = 1300, n_burn = 300, CP = FALSE)
   # saveRDS(btrt_out, file = file.path(result_dir, paste0("1_btrt_hawk_rank",sprintf("%02g",R), sprintf("%02g",R), ".rds")))
   # horse
-  cat("horse \n")
-  btrt_out <- BTRTucker(horse_dat, ranks = c(R, R), n_iter = 1300, n_burn = 300, CP = FALSE)
-  saveRDS(btrt_out, file = file.path(result_dir, paste0("1_btrt_horse_rank",sprintf("%02g",R), sprintf("%02g",R), ".rds")))
+  # cat("horse \n")
+  # btrt_out <- BTRTucker(horse_dat, ranks = c(R, R), n_iter = 1300, n_burn = 300, CP = FALSE)
+  # saveRDS(btrt_out, file = file.path(result_dir, paste0("1_btrt_horse_rank",sprintf("%02g",R), sprintf("%02g",R), ".rds")))
   # palm
   # cat("palm \n")
   # btrt_out <- BTRTucker(palm_dat, ranks = c(R, R), n_iter = 1300, n_burn = 300, CP = FALSE)
   # saveRDS(btrt_out, file = file.path(result_dir, paste0("1_btrt_palm_rank",sprintf("%02g",R), sprintf("%02g",R), ".rds")))
-}
+# }
