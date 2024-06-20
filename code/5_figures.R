@@ -640,11 +640,11 @@ ggsave(filename = file.path(plot_dir,"5_sim_llik.png"), plot = llik_plt,
        width = 8, height = 6)
 
 # Plot the TBM B ----
-result_dir <- "~/github/BTRTucker/results/ADNI_R3/"
+result_dir <- "results/ADNI/"
 # > BTR Tucker ----
 library(bayestensorreg)
 library(stringr)
-btrt_result_dir <- "~/github/BTRTucker/results/ADNI_R3/"
+btrt_result_dir <- "results/ADNI/"
 btrt_tbm_files <- list.files(btrt_result_dir, full.names = T) |>
   grep(pattern = "BTRTucker_rank", value = T)
 
@@ -727,16 +727,16 @@ ggsave(filename = "~/github/BTRTucker/plots/5_btrt_slice080_11k_tbm_B.png", plot
 # > BTR CP ----
 btrcp_tbm_files <- list.files(result_dir, full.names = T) |>
   grep(pattern = "BTR_CP_rank", value = T)
-# job::job({
-#   library(parallel)
-#   cl <- makeCluster(3)
-#   btrcp_tbm_B <- parLapply(cl,btrcp_tbm_files, function(fn){
-#     library(bayestensorreg)
-#     res <- readRDS(fn)
-#     out_B <- btr_cp_final_B(res)
-#   return(out_B)})
-#   saveRDS(btrcp_tbm_B, file = "~/github/BTRTucker/results/ADNI/5_btrcp_slice080_tbm_B.rds")
-# }, import = c(btrcp_tbm_files))
+job::job({
+  library(parallel)
+  cl <- makeCluster(3)
+  btrcp_tbm_B <- parLapply(cl,btrcp_tbm_files, function(fn){
+    library(bayestensorreg)
+    res <- readRDS(fn)
+    out_B <- btr_cp_final_B(res)
+  return(out_B)})
+  saveRDS(btrcp_tbm_B, file = "results/ADNI/5_btrcp_slice080_tbm_B.rds")
+}, import = c(btrcp_tbm_files))
 
 # For the RAM-challenged
 btrcp_tbm_B <- list()
@@ -750,7 +750,7 @@ for(fn in rev(btrcp_tbm_files)) {
 }
 saveRDS(btrcp_tbm_B, file = file.path(result_dir,"5_btrcp_slice080_tbm_B.rds"))
 
-btrcp_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrcp_slice080_tbm_B.rds")
+btrcp_tbm_B <- readRDS("results/ADNI/5_btrcp_slice080_tbm_B.rds")
 names(btrcp_tbm_B) <- btrcp_tbm_files
 
 n_samps <- sapply(btrcp_tbm_files, function(fn){
@@ -759,9 +759,17 @@ n_samps <- sapply(btrcp_tbm_files, function(fn){
   return(out)
 })
 
+# Which is selected by DIC?
+btrcp_tbm_dic <- sapply(btrcp_tbm_files, function(fn) {
+  res <- readRDS(fn)
+  DIC(res$llik, burn_in = 1000)
+})
+
+which.min(btrcp_tbm_dic) # Rank 2
+
 library(tidyverse)
 library(oro.nifti)
-data_dir <- "~/github/BTRTucker/data/"
+data_dir <- "data/"
 mdt_template <- readNIfTI(file.path(data_dir, "ADNI_ICBM9P_mni_4step_MDT.nii.gz"))
 library(fslr)
 mdt_template <- fslbet(mdt_template)
@@ -778,13 +786,14 @@ template_grob <-
   scale_y_continuous(expand = c(0,0))
 template_grob <- ggplotGrob(template_grob)
 btrcp_tbm_df <-
-  reshape2::melt(btrcp_tbm_B) #|>
-  mutate(Rank = substring(L1,69,69),
+  reshape2::melt(btrcp_tbm_B) |>
+  mutate(Rank = stringr::str_extract(L1,"rank[1-4]"),
+         Rank = sub("rank", "", Rank),
          value = value / (1e-5),
          value = ifelse(value > 1,1,value),
          value = value * (1e-5)
-         ) |>
-  select(-L1) #|>
+         )
+  # select(-L1) #|>
   # filter(Rank == "1")
 btrcp_tbm_plt <- ggplot(btrcp_tbm_df) +
   annotation_custom(grob = template_grob) +
@@ -804,6 +813,8 @@ btrcp_tbm_plt <- ggplot(btrcp_tbm_df) +
         text = element_text(size = 18),
         aspect.ratio = 1)
 btrcp_tbm_plt
+ggsave("plots/5_btrcp_slice080_tbm_B.png", plot = btrcp_tbm_plt,
+       width = 11, height = 4)
 
 # > FTR Tucker ----
 ftrt_tbm_files <- list.files(result_dir, full.names = T) |>
@@ -1060,7 +1071,7 @@ ggsave("plots/5_APOE4factor2_btrt_B_rank33.png",
 
 # > BTR CP ----
 # all BTR CP models fail due to infinite values in the posterior precision of beta
-btrcp_tbm_best_B <- matrix(0,220,220)
+# btrcp_tbm_best_B <- matrix(0,220,220)
 # btrcp_tbm_files <- list.files(result_dir, full.names = T) |>
 #   grep(pattern = "BTR_CP_rank", value = T)
 # library(bayestensorreg)
@@ -1071,9 +1082,9 @@ btrcp_tbm_best_B <- matrix(0,220,220)
 #   return(dic_out)
 # })
 # which.min(btrcp_tbm_dic)
-# btrcp_tbm_best_res <- readRDS(btrcp_tbm_files[which.min(btrcp_tbm_dic)])
+btrcp_tbm_best_res <- readRDS(btrcp_tbm_files[which.min(btrcp_tbm_dic)])
 # btrcp_tbm_B <- readRDS("~/github/BTRTucker/results/ADNI/5_btrcp_slice080_tbm_B.rds")
-# btrcp_tbm_best_B <- btrcp_tbm_B[[which.min(btrcp_tbm_dic)]]
+btrcp_tbm_best_B <- btrcp_tbm_B[[which.min(btrcp_tbm_dic)]]
 
 # > FTR Tucker ----
 ftrt_tbm_files <- list.files(result_dir, full.names = T) |>
@@ -1309,7 +1320,7 @@ reshape2::melt(btrt_tbm_best_gam) |>
             high = mean + 3*se)
 
 # BTR CP
-# btrcp_tbm_best_gam <- btrcp_tbm_best_res$gam
+btrcp_tbm_best_gam <- btrcp_tbm_best_res$gam
 
 # FTR Tucker
 ftrt_tbm_best_gam <- ftrt_tbm_best_res$gam
@@ -1609,7 +1620,7 @@ btrcp_fitted_values <- function(result,new_data){
 noimage_fit <- lm(tbm_data$y ~ -1 + tbm_data$eta)$fitted.values
 
 btrt_fit <- btrt_fitted_values(btrt_tbm_best_res,tbm_data)
-# btrcp_fit <- btrcp_fitted_values(btrcp_tbm_best_res, tbm_data)
+btrcp_fit <- btrcp_fitted_values(btrcp_tbm_best_res, tbm_data)
 ftrt_fit <- c(c(ftrt_tbm_best_B) %*% vecX) + c(tbm_data$eta %*% ftrt_tbm_best_gam)
 ftrcp_fit <- c(c(ftrcp_tbm_best_B) %*% vecX) + c(tbm_data$eta %*% ftrcp_tbm_best_gam)
 summary(c(c(btrt_tbm_best_B) %*% vecX))
@@ -1630,7 +1641,7 @@ cor(tbm_data$y,noimage_fit)
 cor(tbm_data$y,ftrcp_fit)
 cor(tbm_data$y,ftrt_fit)
 cor(tbm_data$y,btrt_fit)
-# cor(tbm_data$y,btrcp_fit)
+cor(tbm_data$y,btrcp_fit)
 
 rmspe <- function(fits, vals) {
   out <- sqrt(mean((fits - vals)^2))
