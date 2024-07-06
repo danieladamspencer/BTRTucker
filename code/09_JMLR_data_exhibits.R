@@ -4,7 +4,7 @@
 # set as 2D true coefficients in the simulated data. These shapes are called:
 # R3, R5, shapes, hawk, horse, palm
 # Data ----
-sim_data <- readRDS("~/github/BTRTucker/data/1_BTRCP_JMLR_image_sim_data.rds")
+sim_data <- readRDS("data/1_BTRCP_JMLR_image_sim_data.rds")
 result_dir <- "~/github/BTRTucker/results/BTRCP_JMLR_simulations/"
 # Determine best result ----
 # Use DIC for the BTR CP and BTR Tucker models
