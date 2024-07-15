@@ -1,6 +1,6 @@
 # Analyze BTR CP JMLR data
 
-do_model <- "ftrt"
+do_model <- "ftrcp"
 # Libraries ----
 library(bayestensorreg)
 
@@ -19,6 +19,7 @@ result_dir <- "results/BTRCP_JMLR_simulations/"
 # palm_dat <- list(y = c(sim_data$y_palm), X = sim_data$X)
 ## FTR CP ----
 if(do_model == "ftrcp") {
+  cat("FTR CP\n")
   for(img_set in c("R3", "R5", "shapes", "hawk", "horse", "palm")) {
     cat("Analyzing", img_set, "data\n")
     input_data <- list(
@@ -28,7 +29,8 @@ if(do_model == "ftrcp") {
     for(R in 3:15) {
       cat("... rank", R, "\n")
       ftrcp_out <- FTR_CP(input_data, rank = R)
-      saveRDS(ftrcp_out, file = file.path(result_dir, paste0("08_ftrcp_", img_set, "_rank", R, ".rds")))
+      saveRDS(ftrcp_out, file = file.path(result_dir, paste0("08_ftrcp_", img_set, "_rank",
+                                                             sprintf("%02g", R),".rds")))
     }
   }
 }
@@ -45,7 +47,8 @@ if(do_model == "ftrt") {
     for(R in 3:15) {
       cat("... rank", R, "\n")
       ftrcp_out <- FTRTucker(input_data, ranks = rep(R, 2))
-      saveRDS(ftrcp_out, file = file.path(result_dir, paste0("08_ftrt_hawk_rank",paste(sprintf("%02g", rep(R, 2)), collapse = ""),".rds")))
+      saveRDS(ftrcp_out, file = file.path(result_dir, paste0("08_ftrt_", img_set, "_rank",
+                                                             paste(sprintf("%02g", rep(R, 2)), collapse = ""),".rds")))
     }
   }
 }
